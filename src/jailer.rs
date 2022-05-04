@@ -3,7 +3,6 @@
 use derivative::Derivative;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-
 /// Jailer specific configuration needed to execute the jailer.
 // TODO: Provide a builder for `Config`.
 #[derive(Derivative, Default)]
@@ -43,8 +42,7 @@ pub struct Config<'c> {
 
     /// The mode of the jailer process.
     pub mode: Mode,
-
-	// TODO: We need an equivalent of ChrootStrategy.
+    // TODO: We need an equivalent of ChrootStrategy.
 }
 
 /// The mode of the jailer process.
