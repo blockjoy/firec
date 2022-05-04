@@ -10,6 +10,7 @@ mod machine;
 pub use drive::*;
 pub use jailer::*;
 pub use machine::*;
+use uuid::Uuid;
 
 /// VMM configuration.
 // TODO: Provide a builder for `Config`.
@@ -69,7 +70,7 @@ pub struct Config<'c> {
     /// random uuid if not provided by the user. It's used to set Firecracker's instance ID.
     /// If CNI configuration is provided as part of NetworkInterfaces,
     /// the VMID is used to set CNI ContainerID and create a network namespace path.
-    pub vm_id: Option<&'c str>,
+    pub vm_id: Option<Uuid>,
 
     /// represents the path to a network namespace handle. If present, the
     /// application will use this to join the associated network namespace
