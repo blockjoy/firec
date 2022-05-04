@@ -6,8 +6,10 @@
 
 pub mod config;
 mod error;
+mod machine;
 
 pub use error::*;
+pub use machine::*;
 
 #[cfg(test)]
 mod tests {
