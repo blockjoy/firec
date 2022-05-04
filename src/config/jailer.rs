@@ -4,10 +4,10 @@ use derivative::Derivative;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 /// Jailer specific configuration needed to execute the jailer.
-// TODO: Provide a builder for `Config`.
+// TODO: Provide a builder for `Jailer`.
 #[derive(Derivative, Default)]
 #[derivative(Debug)]
-pub struct Config<'c> {
+pub struct Jailer<'c> {
     /// GID the jailer switches to as it execs the target binary.
     pub gid: i32,
 
