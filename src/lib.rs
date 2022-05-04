@@ -5,6 +5,9 @@
 #![warn(missing_docs, rustdoc::missing_doc_code_examples, unreachable_pub)]
 
 pub mod config;
+mod error;
+
+pub use error::*;
 
 #[cfg(test)]
 mod tests {

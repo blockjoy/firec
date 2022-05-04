@@ -9,4 +9,6 @@ edition = "2021"
 [dependencies]
 derivative = "2.2.0"
 serde = { version = "1.0.137", features = ["derive"] }
+thiserror = "1.0.31"
 tokio = "1.18.1"
+uuid = { version = "1.0.0", features = ["serde"] }
