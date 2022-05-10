@@ -1,5 +1,7 @@
 //! VMM configuration.
 
+use std::{borrow::Cow, path::Path};
+
 use derivative::Derivative;
 use tokio::io::AsyncWrite;
 
@@ -14,47 +16,48 @@ use uuid::Uuid;
 
 /// VMM configuration.
 // TODO: Provide a builder for `Config`.
-#[derive(Derivative, Default)]
-#[derivative(Debug)]
+#[derive(Derivative)]
+#[derivative(Debug, Default)]
 pub struct Config<'c> {
     /// defines the file path where the Firecracker control socket
     /// should be created.
-    pub socket_path: &'c str,
+    #[derivative(Default(value = "Path::new(\"/run/firecracker.socket\").into()"))]
+    pub socket_path: Cow<'c, Path>,
 
     /// defines the file path where the Firecracker log is located.
-    pub log_path: Option<&'c str>,
+    pub log_path: Option<Cow<'c, Path>>,
 
     /// defines the file path where the Firecracker log named-pipe should
     /// be located.
-    pub log_fifo: Option<&'c str>,
+    pub log_fifo: Option<Cow<'c, Path>>,
 
     /// defines the verbosity of Firecracker logging.  Valid values are
     /// "Error", "Warning", "Info", and "Debug", and are case-sensitive.
     pub log_level: Option<LogLevel>,
 
     /// defines the file path where the Firecracker metrics is located.
-    pub metrics_path: &'c str,
+    pub metrics_path: Cow<'c, Path>,
 
     /// defines the file path where the Firecracker metrics
     /// named-pipe should be located.
-    pub metrics_fifo: &'c str,
+    pub metrics_fifo: Cow<'c, Path>,
 
     /// defines the file path where the kernel image is located.
     /// The kernel image must be an uncompressed ELF image.
-    pub kernel_image_path: &'c str,
+    pub kernel_image_path: Cow<'c, Path>,
 
     /// defines the file path where initrd image is located.
     ///
     /// This parameter is optional.
-    pub initrd_path: Option<&'c str>,
+    pub initrd_path: Option<Cow<'c, Path>>,
 
     /// defines the command-line arguments that should be passed to
     /// the kernel.
-    pub kernel_args: Option<&'c str>,
+    pub kernel_args: Option<Cow<'c, Path>>,
 
     /// specifies BlockDevices that should be made available to the
     /// microVM.
-    pub drives: &'c [Drive<'c>],
+    pub drives: Vec<Drive<'c>>,
 
     /// Used to redirect the contents of the fifo log to the writer.
     #[derivative(Debug = "ignore")]
@@ -74,7 +77,7 @@ pub struct Config<'c> {
 
     /// represents the path to a network namespace handle. If present, the
     /// application will use this to join the associated network namespace
-    pub net_ns: Option<&'c str>,
+    pub net_ns: Option<Cow<'c, str>>,
     /* TODO:
 
          /// specifies the tap devices that should be made available

@@ -1,3 +1,5 @@
+use std::{borrow::Cow, path::Path};
+
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
@@ -7,22 +9,22 @@ use serde::{Deserialize, Serialize};
 #[derivative(Debug)]
 pub struct Drive<'d> {
     /// drive id
-    drive_id: &'d str,
+    pub drive_id: Cow<'d, str>,
 
     /// is read only
-    is_read_only: bool,
+    pub is_read_only: bool,
 
     /// is root device
-    is_root_device: bool,
+    pub is_root_device: bool,
 
     /// Represents the unique id of the boot partition of this device.
     ///
     /// It is optional and it will be taken into account only if the is_root_device field is true.
     #[serde(skip_serializing_if = "Option::is_none")]
-    part_uuid: Option<&'d str>,
+    pub part_uuid: Option<Cow<'d, str>>,
 
     /// Host level path for the guest drive
-    path_on_host: &'d str,
+    pub path_on_host: Cow<'d, Path>,
     /* TODO:
 
     /// rate limiter

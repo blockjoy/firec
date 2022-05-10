@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
@@ -20,5 +22,5 @@ pub struct Machine<'m> {
 
     /// cpu template
     // TODO: Should create a type to validate it like the Go API.
-    cpu_template: Option<&'m str>,
+    cpu_template: Option<Cow<'m, str>>,
 }
