@@ -11,5 +11,8 @@ derivative = "2.2.0"
 hyper = { version = "0.14.18", features = ["client" , "http2"] }
 serde = { version = "1.0.137", features = ["derive"] }
 thiserror = "1.0.31"
-tokio = "1.18.1"
-uuid = { version = "1.0.0", features = ["serde"] }
+tokio = { version = "1.18.1", features = ["process", "net", "fs"] }
+uuid = { version = "1.0.0", features = ["serde", "v4"] }
+
+[dev-dependencies]
+tokio = { version = "1.18.1", features = ["rt", "macros"] }
