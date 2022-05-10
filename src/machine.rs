@@ -2,7 +2,7 @@
 
 use std::{
     path::{Path, PathBuf},
-    process::Stdio,
+    process::Stdio, time::Duration,
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 };
 use tokio::{
     fs::copy,
-    process::{Child, Command},
+    process::{Child, Command}, time::sleep,
 };
 use uuid::Uuid;
 
@@ -153,6 +153,10 @@ impl<'m> Machine<'m> {
             .stdout(stdout)
             .stderr(stderr)
             .spawn()?;
+
+        // Give some time to the jailer to start up and create the socket.
+        // FIXME: We should monitor the socket instead?
+        sleep(Duration::from_secs(1)).await;
 
         // `request` doesn't provide API to connect to unix sockets so we we use the low-level
         // approach using hyper: https://github.com/seanmonstar/reqwest/issues/39
