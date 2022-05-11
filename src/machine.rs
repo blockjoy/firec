@@ -62,6 +62,8 @@ impl<'m> Machine<'m> {
             config.vm_id = Some(Uuid::new_v4());
         }
 
+        // TOOD: Validate other parts of config, e.g paths.
+
         // FIXME: Assuming jailer for now.
         let jailer = config.jailer_cfg.as_mut().expect("no jailer config");
         let (daemonize_arg, stdin, stdout, stderr) = match &mut jailer.mode {
