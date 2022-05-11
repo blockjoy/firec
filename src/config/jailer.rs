@@ -10,10 +10,12 @@ use uuid::Uuid;
 #[derivative(Default)]
 pub struct Jailer<'c> {
     /// GID the jailer switches to as it execs the target binary.
-    pub gid: i32,
+    #[derivative(Default(value = "users::get_effective_gid()"))]
+    pub gid: u32,
 
     /// UID the jailer switches to as it execs the target binary.
-    pub uid: i32,
+    #[derivative(Default(value = "users::get_effective_uid()"))]
+    pub uid: u32,
 
     /// The unique VM identification string, which may contain alphanumeric
     /// characters and hyphens. The maximum id length is currently 64 characters
