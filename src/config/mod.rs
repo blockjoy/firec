@@ -3,6 +3,7 @@
 use std::{borrow::Cow, path::Path};
 
 use derivative::Derivative;
+use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWrite;
 
 mod drive;
@@ -87,6 +88,30 @@ pub struct Config<'c> {
           Other fields.
 
     */
+}
+
+impl<'c> Config<'c> {
+    /// Create boot source from `self`.
+    pub fn boot_source(&self) -> BootSource<'_> {
+        BootSource {
+            kernel_image_path: self.kernel_image_path.as_ref(),
+            initrd_path: self.initrd_path.as_ref().map(AsRef::as_ref),
+            boot_args: self.kernel_args.as_ref().map(AsRef::as_ref),
+        }
+    }
+}
+
+/// The boot source for the microVM.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BootSource<'b> {
+    /// The kernel image path.
+    #[serde(borrow)]
+    pub kernel_image_path: &'b Path,
+    /// The (optional) kernel command line.
+    pub boot_args: Option<&'b str>,
+    /// The (optional) initrd image path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initrd_path: Option<&'b Path>,
 }
 
 /// defines the verbosity of Firecracker logging.
