@@ -150,32 +150,8 @@ impl<'m> Machine<'m> {
     pub async fn start(&mut self) -> Result<(), Error> {
         // TODO: Ensure we only get started once.
 
-        // Setup the kernel and initrd.
-        let boot_source = self.config.boot_source();
-        let json = serde_json::to_string(&boot_source)?;
-        let url: hyper::Uri = Uri::new(&self.config.socket_path, "/boot-source").into();
-        let request = Request::builder()
-            .method(Method::PUT)
-            .uri(url)
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .body(Body::from(json))?;
-        self.client.request(request).await?;
-
-        // Now all the drives
-        for drive in &self.config.drives {
-            let path = format!("/drive/{}", drive.drive_id);
-            let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
-            let json = serde_json::to_string(&drive)?;
-
-            let request = Request::builder()
-                .method(Method::PUT)
-                .uri(url)
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .body(Body::from(json))?;
-            self.client.request(request).await?;
-        }
+        self.setup_boot_source().await?;
+        self.setup_drives().await?;
 
         // Start the machine.
         self.send_action(Action::InstanceStart).await?;
@@ -205,6 +181,39 @@ impl<'m> Machine<'m> {
             .header("Content-Type", "application/json")
             .body(Body::from(json))?;
         self.client.request(request).await?;
+
+        Ok(())
+    }
+
+    async fn setup_boot_source(&mut self) -> Result<(), Error> {
+        let boot_source = self.config.boot_source();
+        let json = serde_json::to_string(&boot_source)?;
+        let url: hyper::Uri = Uri::new(&self.config.socket_path, "/boot-source").into();
+        let request = Request::builder()
+            .method(Method::PUT)
+            .uri(url)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(Body::from(json))?;
+        self.client.request(request).await?;
+
+        Ok(())
+    }
+
+    async fn setup_drives(&mut self) -> Result<(), Error> {
+        for drive in &self.config.drives {
+            let path = format!("/drive/{}", drive.drive_id);
+            let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
+            let json = serde_json::to_string(&drive)?;
+
+            let request = Request::builder()
+                .method(Method::PUT)
+                .uri(url)
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .body(Body::from(json))?;
+            self.client.request(request).await?;
+        }
 
         Ok(())
     }
