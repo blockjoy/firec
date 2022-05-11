@@ -4,7 +4,6 @@ use std::{borrow::Cow, path::Path};
 
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWrite;
 
 mod drive;
 mod jailer;
@@ -60,10 +59,11 @@ pub struct Config<'c> {
     /// microVM.
     pub drives: Vec<Drive<'c>>,
 
-    /// Used to redirect the contents of the fifo log to the writer.
-    #[derivative(Debug = "ignore")]
-    pub fifo_log_writer: Option<Box<dyn AsyncWrite>>,
-
+    // FIXME: Can't use trait object here because it's make `Config` non-Send, which is problematic
+    // for async/await.
+    //// Used to redirect the contents of the fifo log to the writer.
+    //#[derivative(Debug = "ignore")]
+    //pub fifo_log_writer: Option<Box<dyn AsyncWrite>>,
     /// The firecracker microVM process configuration
     pub machine_cfg: Machine<'c>,
 
