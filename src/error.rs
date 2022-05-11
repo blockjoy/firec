@@ -19,6 +19,10 @@ pub enum Error {
     #[error("HTTP error")]
     Http(#[from] hyper::http::Error),
 
+    /// JSON error.
+    #[error("JSON error")]
+    Json(#[from] serde_json::Error),
+
     /// Invalid Jailer executable path specified.
     #[error("Invalid Jailer executable path specified")]
     InvalidJailerExecPath,
