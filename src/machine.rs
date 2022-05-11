@@ -2,7 +2,8 @@
 
 use std::{
     path::{Path, PathBuf},
-    process::Stdio, time::Duration,
+    process::Stdio,
+    time::Duration,
 };
 
 use crate::{
@@ -12,7 +13,8 @@ use crate::{
 use serde::Serialize;
 use tokio::{
     fs::copy,
-    process::{Child, Command}, time::sleep,
+    process::{Child, Command},
+    time::sleep,
 };
 use uuid::Uuid;
 
