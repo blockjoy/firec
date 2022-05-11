@@ -22,7 +22,7 @@ use hyper::{Body, Client, Method, Request};
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 
 // FIXME: Hardcoding for now. This should come from ChrootStrategy enum, when we've that.
-const KERNEL_IMAGE_FILENAME: &'static str = "kernel";
+const KERNEL_IMAGE_FILENAME: &str = "kernel";
 
 /// A VMM machine.
 #[derive(Debug)]
@@ -49,9 +49,9 @@ impl<'m> Machine<'m> {
             JailerMode::Daemon => ("--daemonize", Stdio::null(), Stdio::null(), Stdio::null()),
             JailerMode::Attached(stdio) => (
                 "",
-                stdio.stdin.take().unwrap_or_else(|| Stdio::piped()),
-                stdio.stdout.take().unwrap_or_else(|| Stdio::piped()),
-                stdio.stderr.take().unwrap_or_else(|| Stdio::piped()),
+                stdio.stdin.take().unwrap_or_else(Stdio::piped),
+                stdio.stdout.take().unwrap_or_else(Stdio::piped),
+                stdio.stderr.take().unwrap_or_else(Stdio::piped),
             ),
         };
 
@@ -59,7 +59,7 @@ impl<'m> Machine<'m> {
         let exec_file_base = jailer
             .exec_file
             .file_name()
-            .ok_or_else(|| Error::InvalidJailerExecPath)?;
+            .ok_or(Error::InvalidJailerExecPath)?;
         let id_str = jailer.id.to_string();
         let rootfs = jailer
             .chroot_base_dir
@@ -74,7 +74,7 @@ impl<'m> Machine<'m> {
             Some(initrd_path) => {
                 let initrd_filename = initrd_path
                     .file_name()
-                    .ok_or_else(|| Error::InvalidInitrdPath)?
+                    .ok_or(Error::InvalidInitrdPath)?
                     .to_owned();
                 copy(initrd_path.as_os_str(), rootfs.join(&initrd_filename)).await?;
 
@@ -88,7 +88,7 @@ impl<'m> Machine<'m> {
             let drive_filename = drive
                 .path_on_host
                 .file_name()
-                .ok_or_else(|| Error::InvalidDrivePath)?;
+                .ok_or(Error::InvalidDrivePath)?;
             copy(&drive.path_on_host, rootfs.join(drive_filename)).await?;
 
             drive.path_on_host = PathBuf::from(drive_filename).into();
@@ -110,7 +110,7 @@ impl<'m> Machine<'m> {
                 jailer
                     .exec_file
                     .to_str()
-                    .ok_or_else(|| Error::InvalidJailerExecPath)?,
+                    .ok_or(Error::InvalidJailerExecPath)?,
                 "--uid",
                 &jailer.uid.to_string(),
                 "--gid",
@@ -119,14 +119,14 @@ impl<'m> Machine<'m> {
                 jailer
                     .chroot_base_dir
                     .to_str()
-                    .ok_or_else(|| Error::InvalidChrootBasePath)?,
+                    .ok_or(Error::InvalidChrootBasePath)?,
                 daemonize_arg,
                 // `firecracker` binary args.
                 "--",
                 "--socket",
                 socket_path
                     .to_str()
-                    .ok_or_else(|| Error::InvalidSocketPath)?,
+                    .ok_or(Error::InvalidSocketPath)?,
             ])
             .stdin(stdin)
             .stdout(stdout)
