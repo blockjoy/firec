@@ -124,9 +124,7 @@ impl<'m> Machine<'m> {
                 // `firecracker` binary args.
                 "--",
                 "--socket",
-                socket_path
-                    .to_str()
-                    .ok_or(Error::InvalidSocketPath)?,
+                socket_path.to_str().ok_or(Error::InvalidSocketPath)?,
             ])
             .stdin(stdin)
             .stdout(stdout)
