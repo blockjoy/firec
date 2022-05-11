@@ -171,6 +171,11 @@ impl<'m> Machine<'m> {
         self.send_action(Action::SendCtrlAltDel).await
     }
 
+    /// Get the configuration of the machine.
+    pub fn config(&self) -> &Config<'m> {
+        &self.config
+    }
+
     async fn send_action(&mut self, action: Action) -> Result<(), Error> {
         let url: hyper::Uri = Uri::new(&self.config.socket_path, "/actions").into();
         let json = serde_json::to_string(&action)?;
