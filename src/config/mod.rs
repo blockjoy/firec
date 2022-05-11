@@ -53,7 +53,7 @@ pub struct Config<'c> {
 
     /// defines the command-line arguments that should be passed to
     /// the kernel.
-    pub kernel_args: Option<Cow<'c, Path>>,
+    pub kernel_args: Option<Cow<'c, str>>,
 
     /// specifies BlockDevices that should be made available to the
     /// microVM.
