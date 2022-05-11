@@ -9,6 +9,7 @@ use crate::{
     config::{Config, JailerMode},
     Error,
 };
+use serde::Serialize;
 use tokio::{
     fs::copy,
     process::{Child, Command}, time::sleep,
@@ -147,7 +148,39 @@ impl<'m> Machine<'m> {
 
     /// Start the machine.
     pub async fn start(&mut self) -> Result<(), Error> {
-        unimplemented!();
+        // TODO: Ensure we only get started once.
+
+        // Setup the kernel and initrd.
+        let boot_source = self.config.boot_source();
+        let json = serde_json::to_string(&boot_source)?;
+        let url: hyper::Uri = Uri::new(&self.config.socket_path, "/boot-source").into();
+        let request = Request::builder()
+            .method(Method::PUT)
+            .uri(url)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(Body::from(json))?;
+        self.client.request(request).await?;
+
+        // Now all the drives
+        for drive in &self.config.drives {
+            let path = format!("/drive/{}", drive.drive_id);
+            let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
+            let json = serde_json::to_string(&drive)?;
+
+            let request = Request::builder()
+                .method(Method::PUT)
+                .uri(url)
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .body(Body::from(json))?;
+            self.client.request(request).await?;
+        }
+
+        // Start the machine.
+        self.send_action(Action::InstanceStart).await?;
+
+        Ok(())
     }
 
     /// Stop the machine.
@@ -157,6 +190,29 @@ impl<'m> Machine<'m> {
 
     /// Shutdown requests a clean shutdown of the VM by sending CtrlAltDelete on the virtual keyboard.
     pub async fn shutdown(&mut self) -> Result<(), Error> {
-        unimplemented!();
+        self.send_action(Action::SendCtrlAltDel).await
     }
+
+    async fn send_action(&mut self, action: Action) -> Result<(), Error> {
+        let url: hyper::Uri = Uri::new(&self.config.socket_path, "/actions").into();
+        let json = serde_json::to_string(&action)?;
+        let request = Request::builder()
+            .method(Method::PUT)
+            .uri(url)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(Body::from(json))?;
+        self.client.request(request).await?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "action_type", rename_all = "PascalCase")]
+enum Action {
+    InstanceStart,
+    SendCtrlAltDel,
+    #[allow(unused)]
+    FlushMetrics,
 }
