@@ -15,11 +15,8 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use hyper::{
-    client::conn::{self, Connection, SendRequest},
-    Body, Request,
-};
-use tokio::net::UnixStream;
+use hyper::{Body, Client, Method, Request};
+use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 
 // FIXME: Hardcoding for now. This should come from ChrootStrategy enum, when we've that.
 const KERNEL_IMAGE_FILENAME: &'static str = "kernel";
@@ -29,35 +26,14 @@ const KERNEL_IMAGE_FILENAME: &'static str = "kernel";
 pub struct Machine<'m> {
     config: Config<'m>,
     child: Child,
-    request_sender: SendRequest<Body>,
+    client: Client<UnixConnector>,
 }
 
 impl<'m> Machine<'m> {
     /// Create a new machine.
     ///
     /// The machine is not started yet.
-    ///
-    /// **Note:** The returned [`Connection`] must be awaited on for comms with Firecracker VMM to
-    /// make progress. You can run in in a task of the async runtime of your choice:
-    ///
-    /// ```no_run
-    ///# #[tokio::main(flavor = "current_thread")]
-    ///# async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///
-    /// let config = firec::config::Config::default();
-    /// let (machine, connection) = firec::Machine::new(config).await?;
-    /// tokio::spawn(async move {
-    ///     if let Err(e) = connection.await {
-    ///         eprintln!("error: {}", e);
-    ///     }
-    /// });
-    ///
-    ///# Ok(())
-    ///# }
-    /// ```
-    pub async fn new(
-        mut config: Config<'m>,
-    ) -> Result<(Machine<'m>, Connection<UnixStream, Body>), Error> {
+    pub async fn new(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
         if config.vm_id == None {
             config.vm_id = Some(Uuid::new_v4());
         }
@@ -160,17 +136,13 @@ impl<'m> Machine<'m> {
 
         // `request` doesn't provide API to connect to unix sockets so we we use the low-level
         // approach using hyper: https://github.com/seanmonstar/reqwest/issues/39
-        let stream = UnixStream::connect(&config.socket_path).await?;
-        let (request_sender, connection) = conn::handshake(stream).await?;
+        let client = Client::unix();
 
-        Ok((
-            Self {
-                config,
-                child,
-                request_sender,
-            },
-            connection,
-        ))
+        Ok(Self {
+            config,
+            child,
+            client,
+        })
     }
 
     /// Start the machine.
