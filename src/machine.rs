@@ -117,8 +117,6 @@ impl<'m> Machine<'m> {
 
         config.kernel_image_path = Path::new(KERNEL_IMAGE_FILENAME).into();
 
-        //config.socket_path.to_str().ok_or_else(|| Error::InvalidSocketPath)?,
-
         // Adjust socket file path.
         let socket_path = config.socket_path;
         config.socket_path = rootfs.join(&socket_path).into();
