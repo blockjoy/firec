@@ -139,20 +139,20 @@ impl<'m> Machine<'m> {
         // approach using hyper: https://github.com/seanmonstar/reqwest/issues/39
         let client = Client::unix();
 
-        Ok(Self {
+        let mut machine = Self {
             config,
             child,
             client,
-        })
+        };
+
+        machine.setup_boot_source().await?;
+        machine.setup_drives().await?;
+
+        Ok(machine)
     }
 
     /// Start the machine.
     pub async fn start(&mut self) -> Result<(), Error> {
-        // TODO: Ensure we only get started once.
-
-        self.setup_boot_source().await?;
-        self.setup_drives().await?;
-
         // Start the machine.
         self.send_action(Action::InstanceStart).await?;
 
