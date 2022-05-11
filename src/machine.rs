@@ -187,7 +187,9 @@ impl<'m> Machine<'m> {
 
     /// Stop the machine.
     pub async fn stop(&mut self) -> Result<(), Error> {
-        unimplemented!();
+        self.child.kill().await?;
+
+        Ok(())
     }
 
     /// Shutdown requests a clean shutdown of the VM by sending CtrlAltDelete on the virtual keyboard.
