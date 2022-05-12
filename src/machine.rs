@@ -146,6 +146,7 @@ impl<'m> Machine<'m> {
             client,
         };
 
+        machine.setup_resources().await?;
         machine.setup_boot_source().await?;
         machine.setup_drives().await?;
         machine.setup_network().await?;
@@ -181,6 +182,20 @@ impl<'m> Machine<'m> {
     async fn send_action(&mut self, action: Action) -> Result<(), Error> {
         let url: hyper::Uri = Uri::new(&self.config.socket_path, "/actions").into();
         let json = serde_json::to_string(&action)?;
+        let request = Request::builder()
+            .method(Method::PUT)
+            .uri(url)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(Body::from(json))?;
+        self.client.request(request).await?;
+
+        Ok(())
+    }
+
+    async fn setup_resources(&mut self) -> Result<(), Error> {
+        let json = serde_json::to_string(&self.config.machine_cfg)?;
+        let url: hyper::Uri = Uri::new(&self.config.socket_path, "/machine-config").into();
         let request = Request::builder()
             .method(Method::PUT)
             .uri(url)
