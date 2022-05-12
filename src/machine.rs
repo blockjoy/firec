@@ -50,9 +50,9 @@ impl<'m> Machine<'m> {
             JailerMode::Daemon => ("--daemonize", Stdio::null(), Stdio::null(), Stdio::null()),
             JailerMode::Attached(stdio) => (
                 "",
-                stdio.stdin.take().unwrap_or_else(Stdio::piped),
-                stdio.stdout.take().unwrap_or_else(Stdio::piped),
-                stdio.stderr.take().unwrap_or_else(Stdio::piped),
+                stdio.stdin.take().unwrap_or_else(Stdio::inherit),
+                stdio.stdout.take().unwrap_or_else(Stdio::inherit),
+                stdio.stderr.take().unwrap_or_else(Stdio::inherit),
             ),
         };
 
