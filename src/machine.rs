@@ -13,7 +13,7 @@ use crate::{
 use serde::Serialize;
 use serde_json::json;
 use tokio::{
-    fs::copy,
+    fs::{copy, DirBuilder},
     process::{Child, Command},
     time::sleep,
 };
@@ -67,6 +67,7 @@ impl<'m> Machine<'m> {
             .join(exec_file_base)
             .join(&id_str)
             .join("root");
+        DirBuilder::new().recursive(true).create(&rootfs).await?;
 
         // Copy the kernel image to the rootfs.
         copy(config.kernel_image_path, rootfs.join(KERNEL_IMAGE_FILENAME)).await?;
