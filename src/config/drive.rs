@@ -1,12 +1,10 @@
 use std::{borrow::Cow, path::Path};
 
-use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
 /// Drive configuration.
 // TODO: Provide a builder for `Drive`.
-#[derive(Derivative, Serialize, Deserialize, Default)]
-#[derivative(Debug)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Drive<'d> {
     /// drive id
     pub drive_id: Cow<'d, str>,

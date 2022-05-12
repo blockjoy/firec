@@ -1,12 +1,10 @@
 use std::borrow::Cow;
 
-use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
 /// Machine configuration.
 // TODO: Provide a builder for `Machine`.
-#[derive(Derivative, Serialize, Deserialize, Default)]
-#[derivative(Debug)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Machine<'m> {
     /// Flag for enabling/disabling Hyperthreading
     ht_ennabled: bool,
