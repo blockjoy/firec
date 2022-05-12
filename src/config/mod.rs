@@ -84,7 +84,7 @@ pub struct Config<'c> {
 
     /// specifies the tap devices that should be made available
     /// to the microVM.
-    pub network_interfaces: &'c [network::Interface<'c>],
+    pub network_interfaces: Vec<network::Interface<'c>>,
     /* TODO:
 
 
