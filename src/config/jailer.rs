@@ -19,6 +19,7 @@ pub struct Jailer<'c> {
 
     /// The unique VM identification string, which may contain alphanumeric
     /// characters and hyphens. The maximum id length is currently 64 characters
+    #[derivative(Default(value = "uuid::Uuid::new_v4()"))]
     pub id: Uuid,
 
     /// NumaNode represents the NUMA node the process gets assigned to.
