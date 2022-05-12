@@ -47,9 +47,14 @@ impl<'m> Machine<'m> {
         // FIXME: Assuming jailer for now.
         let jailer = config.jailer_cfg.as_mut().expect("no jailer config");
         let (daemonize_arg, stdin, stdout, stderr) = match &mut jailer.mode {
-            JailerMode::Daemon => ("--daemonize", Stdio::null(), Stdio::null(), Stdio::null()),
+            JailerMode::Daemon => (
+                Some("--daemonize"),
+                Stdio::null(),
+                Stdio::null(),
+                Stdio::null(),
+            ),
             JailerMode::Attached(stdio) => (
-                "",
+                None,
                 stdio.stdin.take().unwrap_or_else(Stdio::inherit),
                 stdio.stdout.take().unwrap_or_else(Stdio::inherit),
                 stdio.stderr.take().unwrap_or_else(Stdio::inherit),
@@ -104,7 +109,8 @@ impl<'m> Machine<'m> {
 
         // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
-        let child = Command::new(jailer.jailer_binary.as_os_str())
+        let mut cmd = Command::new(jailer.jailer_binary.as_os_str());
+        let mut cmd = cmd
             .args(&[
                 "--id",
                 &id_str,
@@ -122,7 +128,6 @@ impl<'m> Machine<'m> {
                     .chroot_base_dir
                     .to_str()
                     .ok_or(Error::InvalidChrootBasePath)?,
-                daemonize_arg,
                 // `firecracker` binary args.
                 "--",
                 "--socket",
@@ -130,8 +135,11 @@ impl<'m> Machine<'m> {
             ])
             .stdin(stdin)
             .stdout(stdout)
-            .stderr(stderr)
-            .spawn()?;
+            .stderr(stderr);
+        if let Some(daemonize_arg) = daemonize_arg {
+            cmd = cmd.arg(daemonize_arg);
+        }
+        let child = cmd.spawn()?;
 
         // Give some time to the jailer to start up and create the socket.
         // FIXME: We should monitor the socket instead?
