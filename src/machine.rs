@@ -130,7 +130,7 @@ impl<'m> Machine<'m> {
                     .ok_or(Error::InvalidChrootBasePath)?,
                 // `firecracker` binary args.
                 "--",
-                "--socket",
+                "--api-sock",
                 socket_path.to_str().ok_or(Error::InvalidSocketPath)?,
             ])
             .stdin(stdin)
