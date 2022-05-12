@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 mod drive;
 mod jailer;
 mod machine;
+/// Network configuration.
+pub mod network;
 
 pub use drive::*;
 pub use jailer::*;
@@ -79,11 +81,12 @@ pub struct Config<'c> {
     /// represents the path to a network namespace handle. If present, the
     /// application will use this to join the associated network namespace
     pub net_ns: Option<Cow<'c, str>>,
+
+    /// specifies the tap devices that should be made available
+    /// to the microVM.
+    pub network_interfaces: &'c [network::Interface<'c>],
     /* TODO:
 
-         /// specifies the tap devices that should be made available
-         /// to the microVM.
-        pub network_interfaces: &'c [NetworkInterface],
 
           Other fields.
 

@@ -7,10 +7,11 @@ use std::{
 };
 
 use crate::{
-    config::{Config, JailerMode},
+    config::{network, Config, JailerMode},
     Error,
 };
 use serde::Serialize;
+use serde_json::json;
 use tokio::{
     fs::copy,
     process::{Child, Command},
@@ -147,6 +148,7 @@ impl<'m> Machine<'m> {
 
         machine.setup_boot_source().await?;
         machine.setup_drives().await?;
+        machine.setup_network().await?;
 
         Ok(machine)
     }
@@ -219,6 +221,29 @@ impl<'m> Machine<'m> {
                 .body(Body::from(json))?;
             self.client.request(request).await?;
         }
+
+        Ok(())
+    }
+
+    async fn setup_network(&mut self) -> Result<(), Error> {
+        // TODO: check for at least one interface.
+        let network = &self.config.network_interfaces[0];
+        let network::Interface::Cni(cni) = network;
+        let iface_id = cni.vm_if_name.as_ref().unwrap_or(&cni.network_name);
+        let json = json!({
+            "iface_id": iface_id,
+            "host_dev_name": cni.if_name,
+        });
+        let json = serde_json::to_string(&json)?;
+        let path = format!("/network-interfaces/{}", iface_id);
+        let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
+        let request = Request::builder()
+            .method(Method::PUT)
+            .uri(url)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(Body::from(json))?;
+        self.client.request(request).await?;
 
         Ok(())
     }
