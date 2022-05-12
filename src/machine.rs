@@ -161,7 +161,7 @@ impl<'m> Machine<'m> {
 
         // Give some time to the jailer to start up and create the socket.
         // FIXME: We should monitor the socket instead?
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_secs(10)).await;
 
         // `request` doesn't provide API to connect to unix sockets so we we use the low-level
         // approach using hyper: https://github.com/seanmonstar/reqwest/issues/39
