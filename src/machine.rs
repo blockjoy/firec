@@ -106,6 +106,9 @@ impl<'m> Machine<'m> {
         // Adjust socket file path.
         let socket_path = config.socket_path;
         config.socket_path = rootfs.join(&socket_path).into();
+        if let Some(socket_dir) = config.socket_path.parent() {
+            DirBuilder::new().recursive(true).create(socket_dir).await?;
+        }
 
         // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
