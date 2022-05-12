@@ -67,15 +67,22 @@ impl<'m> Machine<'m> {
             .file_name()
             .ok_or(Error::InvalidJailerExecPath)?;
         let id_str = jailer.id.to_string();
-        let rootfs = jailer
+        let jailer_workspace_dir = jailer
             .chroot_base_dir
             .join(exec_file_base)
             .join(&id_str)
             .join("root");
-        DirBuilder::new().recursive(true).create(&rootfs).await?;
+        DirBuilder::new()
+            .recursive(true)
+            .create(&jailer_workspace_dir)
+            .await?;
 
         // Copy the kernel image to the rootfs.
-        copy(config.kernel_image_path, rootfs.join(KERNEL_IMAGE_FILENAME)).await?;
+        copy(
+            config.kernel_image_path,
+            jailer_workspace_dir.join(KERNEL_IMAGE_FILENAME),
+        )
+        .await?;
         // Now the initrd, if specified.
         config.initrd_path = match config.initrd_path {
             Some(initrd_path) => {
@@ -83,7 +90,11 @@ impl<'m> Machine<'m> {
                     .file_name()
                     .ok_or(Error::InvalidInitrdPath)?
                     .to_owned();
-                copy(initrd_path.as_os_str(), rootfs.join(&initrd_filename)).await?;
+                copy(
+                    initrd_path.as_os_str(),
+                    jailer_workspace_dir.join(&initrd_filename),
+                )
+                .await?;
 
                 Some(PathBuf::from(initrd_filename).into())
             }
@@ -96,7 +107,11 @@ impl<'m> Machine<'m> {
                 .path_on_host
                 .file_name()
                 .ok_or(Error::InvalidDrivePath)?;
-            copy(&drive.path_on_host, rootfs.join(drive_filename)).await?;
+            copy(
+                &drive.path_on_host,
+                jailer_workspace_dir.join(drive_filename),
+            )
+            .await?;
 
             drive.path_on_host = PathBuf::from(drive_filename).into();
         }
@@ -105,7 +120,7 @@ impl<'m> Machine<'m> {
 
         // Adjust socket file path.
         let socket_path = config.socket_path;
-        config.socket_path = rootfs.join(&socket_path).into();
+        config.socket_path = jailer_workspace_dir.join(&socket_path).into();
         if let Some(socket_dir) = config.socket_path.parent() {
             DirBuilder::new().recursive(true).create(socket_dir).await?;
         }
