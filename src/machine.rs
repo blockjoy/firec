@@ -258,7 +258,7 @@ impl<'m> Machine<'m> {
 
     async fn setup_drives(&mut self) -> Result<(), Error> {
         for drive in &self.config.drives {
-            let path = format!("/drive/{}", drive.drive_id);
+            let path = format!("/drives/{}", drive.drive_id);
             let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
             let json = serde_json::to_string(&drive)?;
 
