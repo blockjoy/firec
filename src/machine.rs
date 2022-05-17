@@ -120,7 +120,14 @@ impl<'m> Machine<'m> {
 
         // Adjust socket file path.
         let socket_path = config.socket_path;
-        config.socket_path = jailer_workspace_dir.join(&socket_path).into();
+        let relative_path = if socket_path.has_root() {
+            socket_path
+                .strip_prefix("/")
+                .map_err(|_| Error::InvalidSocketPath)?
+        } else {
+            &socket_path
+        };
+        config.socket_path = jailer_workspace_dir.join(relative_path).into();
         if let Some(socket_dir) = config.socket_path.parent() {
             DirBuilder::new().recursive(true).create(socket_dir).await?;
         }
