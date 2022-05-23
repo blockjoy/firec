@@ -68,12 +68,12 @@ impl<'m> Machine<'m> {
 
         // Assemble the path to the jailed root folder on the host.
         let exec_file_base = jailer
-            .exec_file
+            .exec_file()
             .file_name()
             .ok_or(Error::InvalidJailerExecPath)?;
-        let id_str = jailer.id.to_string();
+        let id_str = jailer.id().to_string();
         let jailer_workspace_dir = jailer
-            .chroot_base_dir
+            .chroot_base_dir()
             .join(exec_file_base)
             .join(&id_str)
             .join("root");
@@ -159,23 +159,23 @@ impl<'m> Machine<'m> {
 
         // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
-        let mut cmd = Command::new(jailer.jailer_binary.as_os_str());
+        let mut cmd = Command::new(jailer.jailer_binary().as_os_str());
         let mut cmd = cmd
             .args(&[
                 "--id",
                 &id_str,
                 "--exec-file",
                 jailer
-                    .exec_file
+                    .exec_file()
                     .to_str()
                     .ok_or(Error::InvalidJailerExecPath)?,
                 "--uid",
-                &jailer.uid.to_string(),
+                &jailer.uid().to_string(),
                 "--gid",
-                &jailer.gid.to_string(),
+                &jailer.gid().to_string(),
                 "--chroot-base-dir",
                 jailer
-                    .chroot_base_dir
+                    .chroot_base_dir()
                     .to_str()
                     .ok_or(Error::InvalidChrootBasePath)?,
                 // `firecracker` binary args.

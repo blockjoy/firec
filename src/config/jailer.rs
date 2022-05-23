@@ -8,45 +8,19 @@ use uuid::Uuid;
 #[derive(Derivative, Debug)]
 #[derivative(Default)]
 pub struct Jailer<'c> {
-    /// GID the jailer switches to as it execs the target binary.
     #[derivative(Default(value = "users::get_effective_gid()"))]
-    pub gid: u32,
-
-    /// UID the jailer switches to as it execs the target binary.
+    gid: u32,
     #[derivative(Default(value = "users::get_effective_uid()"))]
-    pub uid: u32,
-
-    /// The unique VM identification string, which may contain alphanumeric
-    /// characters and hyphens. The maximum id length is currently 64 characters
+    uid: u32,
     #[derivative(Default(value = "uuid::Uuid::new_v4()"))]
-    pub id: Uuid,
-
-    /// NumaNode represents the NUMA node the process gets assigned to.
-    pub numa_node: Option<i32>,
-
-    /// The path to the Firecracker binary that will be exec-ed by
-    /// the jailer. The user can provide a path to any binary, but the interaction
-    /// with the jailer is mostly Firecracker specific.
-    pub exec_file: Cow<'c, Path>,
-
-    /// Specifies the jailer binary to be used for setting up the
-    /// Firecracker VM jail. If the value contains no path separators, it will
-    /// use the PATH environment variable to get the absolute path of the binary.
-    /// If the value contains path separators, the value will be used directly
-    /// to exec the jailer. This follows the same conventions as Golang's
-    /// os/exec.Command.
-    //
-    /// If not specified it defaults to "jailer".
+    id: Uuid,
+    numa_node: Option<i32>,
+    exec_file: Cow<'c, Path>,
     #[derivative(Default(value = "Path::new(\"jailer\").into()"))]
-    pub jailer_binary: Cow<'c, Path>,
-
-    /// represents the base folder where chroot jails are built. The
-    /// default is `/srv/jailer`.
+    jailer_binary: Cow<'c, Path>,
     #[derivative(Default(value = "Path::new(\"/srv/jailer\").into()"))]
-    pub chroot_base_dir: Cow<'c, Path>,
-
-    /// The mode of the jailer process.
-    pub mode: JailerMode,
+    chroot_base_dir: Cow<'c, Path>,
+    pub(crate) mode: JailerMode,
     // TODO: We need an equivalent of ChrootStrategy.
 }
 
@@ -63,6 +37,46 @@ impl<'c> Jailer<'c> {
             chroot_base_dir: Path::new("/srv/jailer").into(),
             mode: JailerMode::default(),
         })
+    }
+
+    /// GID the jailer switches to as it execs the target binary.
+    pub fn gid(&self) -> u32 {
+        self.gid
+    }
+
+    /// UID the jailer switches to as it execs the target binary.
+    pub fn uid(&self) -> u32 {
+        self.uid
+    }
+
+    /// The unique VM identification.
+    pub fn id(&self) -> &Uuid {
+        &self.id
+    }
+
+    /// The NUMA node the process gets assigned to.
+    pub fn numa_node(&self) -> Option<i32> {
+        self.numa_node
+    }
+
+    /// The path to the Firecracker binary that will be exec-ed by the jailer.
+    pub fn exec_file(&self) -> &Path {
+        &self.exec_file
+    }
+
+    /// Specifies the jailer binary to be used for setting up the Firecracker VM jail.
+    pub fn jailer_binary(&self) -> &Path {
+        &self.jailer_binary
+    }
+
+    /// The base folder where chroot jails are built.
+    pub fn chroot_base_dir(&self) -> &Path {
+        &self.chroot_base_dir
+    }
+
+    /// The mode of the jailer process.
+    pub fn mode(&self) -> &JailerMode {
+        &self.mode
     }
 }
 
