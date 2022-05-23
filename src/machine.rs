@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    config::{network, Config, JailerMode},
+    config::{Config, JailerMode},
     Error,
 };
 use serde::Serialize;
@@ -338,14 +338,12 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Configuring network...");
         // TODO: check for at least one interface.
         let network = &self.config.network_interfaces[0];
-        let network::Interface::Cni(cni) = network;
-        let iface_id = cni.vm_if_name.as_ref().unwrap_or(&cni.network_name);
         let json = json!({
-            "iface_id": iface_id,
-            "host_dev_name": cni.if_name,
+            "iface_id": network.vm_if_name,
+            "host_dev_name": network.host_if_name,
         });
         let json = serde_json::to_string(&json)?;
-        let path = format!("/network-interfaces/{}", iface_id);
+        let path = format!("/network-interfaces/{}", network.vm_if_name);
         let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
         let request = Request::builder()
             .method(Method::PUT)
