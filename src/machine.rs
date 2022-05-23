@@ -339,11 +339,11 @@ impl<'m> Machine<'m> {
         // TODO: check for at least one interface.
         let network = &self.config.network_interfaces[0];
         let json = json!({
-            "iface_id": network.vm_if_name,
-            "host_dev_name": network.host_if_name,
+            "iface_id": network.vm_if_name(),
+            "host_dev_name": network.host_if_name(),
         });
         let json = serde_json::to_string(&json)?;
-        let path = format!("/network-interfaces/{}", network.vm_if_name);
+        let path = format!("/network-interfaces/{}", network.vm_if_name());
         let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
         let request = Request::builder()
             .method(Method::PUT)
