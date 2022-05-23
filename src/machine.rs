@@ -117,17 +117,17 @@ impl<'m> Machine<'m> {
         // Copy all drives to the rootfs.
         for drive in &mut config.drives {
             let drive_filename = drive
-                .path_on_host
+                .path_on_host()
                 .file_name()
                 .ok_or(Error::InvalidDrivePath)?;
             let dest = jailer_workspace_dir.join(drive_filename);
             trace!(
                 "{vm_id}: Copying drive `{}` from `{}` to `{}`",
-                drive.drive_id,
-                drive.path_on_host.display(),
+                drive.drive_id(),
+                drive.path_on_host().display(),
                 dest.display()
             );
-            copy(&drive.path_on_host, dest).await?;
+            copy(&drive.path_on_host(), dest).await?;
 
             drive.path_on_host = PathBuf::from(drive_filename).into();
         }
@@ -315,7 +315,7 @@ impl<'m> Machine<'m> {
         let vm_id = self.vm_id();
         trace!("{vm_id}: Configuring drives...");
         for drive in &self.config.drives {
-            let path = format!("/drives/{}", drive.drive_id);
+            let path = format!("/drives/{}", drive.drive_id());
             let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
             let json = serde_json::to_string(&drive)?;
 

@@ -5,23 +5,12 @@ use serde::{Deserialize, Serialize};
 /// Drive configuration.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Drive<'d> {
-    /// drive id
-    pub drive_id: Cow<'d, str>,
-
-    /// is read only
-    pub is_read_only: bool,
-
-    /// is root device
-    pub is_root_device: bool,
-
-    /// Represents the unique id of the boot partition of this device.
-    ///
-    /// It is optional and it will be taken into account only if the is_root_device field is true.
+    drive_id: Cow<'d, str>,
+    is_read_only: bool,
+    is_root_device: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub part_uuid: Option<Cow<'d, str>>,
-
-    /// Host level path for the guest drive
-    pub path_on_host: Cow<'d, Path>,
+    part_uuid: Option<Cow<'d, str>>,
+    pub(crate) path_on_host: Cow<'d, Path>,
     /* TODO:
 
     /// rate limiter
@@ -45,6 +34,31 @@ impl<'d> Drive<'d> {
             part_uuid: None,
             path_on_host: path_on_host.into(),
         })
+    }
+
+    /// The drive ID.
+    pub fn drive_id(&self) -> &str {
+        &self.drive_id
+    }
+
+    /// If the drive is read-only.
+    pub fn is_read_only(&self) -> bool {
+        self.is_read_only
+    }
+
+    /// If the drive is the root device.
+    pub fn is_root_device(&self) -> bool {
+        self.is_root_device
+    }
+
+    /// The unique id of the boot partition of this device.
+    pub fn part_uuid(&self) -> Option<&str> {
+        self.part_uuid.as_deref()
+    }
+
+    /// Host level path for the guest drive.
+    pub fn path_on_host(&self) -> &Path {
+        &self.path_on_host
     }
 }
 
