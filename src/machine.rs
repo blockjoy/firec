@@ -39,7 +39,7 @@ impl<'m> Machine<'m> {
     /// The machine is not started yet.
     #[instrument]
     pub async fn new(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
-        let vm_id = config.vm_id;
+        let vm_id = *config.vm_id();
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
 
@@ -216,11 +216,11 @@ impl<'m> Machine<'m> {
     /// Start the machine.
     #[instrument]
     pub async fn start(&mut self) -> Result<(), Error> {
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Starting the VM...");
         // Start the machine.
         self.send_action(Action::InstanceStart).await?;
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: VM started successfully.");
 
         Ok(())
@@ -229,10 +229,10 @@ impl<'m> Machine<'m> {
     /// Stop the machine.
     #[instrument]
     pub async fn stop(&mut self) -> Result<(), Error> {
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
         self.child.kill().await?;
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: VM sent KILL signal successfully.");
 
         Ok(())
@@ -241,10 +241,10 @@ impl<'m> Machine<'m> {
     /// Shutdown requests a clean shutdown of the VM by sending CtrlAltDelete on the virtual keyboard.
     #[instrument]
     pub async fn shutdown(&mut self) -> Result<(), Error> {
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
         self.send_action(Action::SendCtrlAltDel).await?;
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: CTRL+ALT+DEL sent to VM successfully.");
 
         Ok(())
@@ -271,9 +271,9 @@ impl<'m> Machine<'m> {
 
     #[instrument]
     async fn setup_resources(&mut self) -> Result<(), Error> {
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring machine resources...");
-        let json = serde_json::to_string(&self.config.machine_cfg)?;
+        let json = serde_json::to_string(self.config.machine_cfg())?;
         let url: hyper::Uri = Uri::new(&self.config.socket_path, "/machine-config").into();
         let request = Request::builder()
             .method(Method::PUT)
@@ -289,7 +289,7 @@ impl<'m> Machine<'m> {
 
     #[instrument]
     async fn setup_boot_source(&mut self) -> Result<(), Error> {
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring boot source...");
         let boot_source = self.config.boot_source();
         let json = serde_json::to_string(&boot_source)?;
@@ -308,7 +308,7 @@ impl<'m> Machine<'m> {
 
     #[instrument]
     async fn setup_drives(&mut self) -> Result<(), Error> {
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring drives...");
         for drive in &self.config.drives {
             let path = format!("/drives/{}", drive.drive_id());
@@ -330,10 +330,10 @@ impl<'m> Machine<'m> {
 
     #[instrument]
     async fn setup_network(&mut self) -> Result<(), Error> {
-        let vm_id = &self.config.vm_id;
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring network...");
         // TODO: check for at least one interface.
-        let network = &self.config.network_interfaces[0];
+        let network = &self.config.network_interfaces()[0];
         let json = json!({
             "iface_id": network.vm_if_name(),
             "host_dev_name": network.host_if_name(),
