@@ -38,11 +38,11 @@ pub struct Config<'c> {
     pub log_level: Option<LogLevel>,
 
     /// defines the file path where the Firecracker metrics is located.
-    pub metrics_path: Cow<'c, Path>,
+    pub metrics_path: Option<Cow<'c, Path>>,
 
     /// defines the file path where the Firecracker metrics
     /// named-pipe should be located.
-    pub metrics_fifo: Cow<'c, Path>,
+    pub metrics_fifo: Option<Cow<'c, Path>>,
 
     /// defines the file path where the kernel image is located.
     /// The kernel image must be an uncompressed ELF image.
