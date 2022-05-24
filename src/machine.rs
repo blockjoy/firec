@@ -14,7 +14,7 @@ use serde::Serialize;
 use serde_json::json;
 use tokio::{
     fs::{copy, DirBuilder},
-    process::{Child, Command},
+    process::Command,
     time::sleep,
 };
 use tracing::{info, instrument, trace};
@@ -30,7 +30,6 @@ const KERNEL_IMAGE_FILENAME: &str = "kernel";
 #[derive(Debug)]
 pub struct Machine<'m> {
     config: Config<'m>,
-    child: Child,
     client: Client<UnixConnector>,
 }
 
@@ -190,7 +189,7 @@ impl<'m> Machine<'m> {
             cmd = cmd.arg(daemonize_arg);
         }
         trace!("{vm_id}: Running command: {:?}", cmd);
-        let child = cmd.spawn()?;
+        cmd.spawn()?;
 
         // Give some time to the jailer to start up and create the socket.
         // FIXME: We should monitor the socket instead?
@@ -201,11 +200,7 @@ impl<'m> Machine<'m> {
         // approach using hyper: https://github.com/seanmonstar/reqwest/issues/39
         let client = Client::unix();
 
-        let mut machine = Self {
-            config,
-            child,
-            client,
-        };
+        let mut machine = Self { config, client };
 
         info!("{vm_id}: Setting the VM...");
         machine.setup_resources().await?;
@@ -226,18 +221,6 @@ impl<'m> Machine<'m> {
         self.send_action(Action::InstanceStart).await?;
         let vm_id = self.vm_id();
         trace!("{vm_id}: VM started successfully.");
-
-        Ok(())
-    }
-
-    /// Stop the machine.
-    #[instrument]
-    pub async fn stop(&mut self) -> Result<(), Error> {
-        let vm_id = self.vm_id();
-        trace!("{vm_id}: Killing VM...");
-        self.child.kill().await?;
-        let vm_id = self.vm_id();
-        trace!("{vm_id}: VM sent KILL signal successfully.");
 
         Ok(())
     }
