@@ -4,12 +4,11 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
 /// Machine configuration.
-#[derive(Derivative, Debug, Serialize, Deserialize, Default)]
+#[derive(Derivative, Debug, Serialize, Deserialize)]
 pub struct Machine<'m> {
     smt: bool,
     track_dirty_pages: bool,
     mem_size_mib: i64,
-    #[derivative(Default(value = "1"))]
     vcpu_count: usize,
     // TODO: Should create a type to validate it like the Go API.
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -5,20 +5,14 @@ use std::{borrow::Cow, path::Path};
 use uuid::Uuid;
 
 /// Jailer specific configuration needed to execute the jailer.
-#[derive(Derivative, Debug)]
-#[derivative(Default)]
+#[derive(Debug)]
 pub struct Jailer<'c> {
-    #[derivative(Default(value = "users::get_effective_gid()"))]
     gid: u32,
-    #[derivative(Default(value = "users::get_effective_uid()"))]
     uid: u32,
-    #[derivative(Default(value = "uuid::Uuid::new_v4()"))]
     id: Uuid,
     numa_node: Option<i32>,
     exec_file: Cow<'c, Path>,
-    #[derivative(Default(value = "Path::new(\"jailer\").into()"))]
     jailer_binary: Cow<'c, Path>,
-    #[derivative(Default(value = "Path::new(\"/srv/jailer\").into()"))]
     chroot_base_dir: Cow<'c, Path>,
     pub(crate) mode: JailerMode,
     // TODO: We need an equivalent of ChrootStrategy.

@@ -17,10 +17,8 @@ pub use machine::*;
 use uuid::Uuid;
 
 /// VMM configuration.
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct Config<'c> {
-    #[derivative(Default(value = "Path::new(\"/run/firecracker.socket\").into()"))]
     pub(crate) socket_path: Cow<'c, Path>,
     log_path: Option<Cow<'c, Path>>,
     log_fifo: Option<Cow<'c, Path>>,
