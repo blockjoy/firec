@@ -6,21 +6,21 @@ use uuid::Uuid;
 
 /// Jailer specific configuration needed to execute the jailer.
 #[derive(Debug)]
-pub struct Jailer<'c> {
+pub struct Jailer<'j> {
     gid: u32,
     uid: u32,
     id: Uuid,
     numa_node: Option<i32>,
-    exec_file: Cow<'c, Path>,
-    jailer_binary: Cow<'c, Path>,
-    chroot_base_dir: Cow<'c, Path>,
+    exec_file: Cow<'j, Path>,
+    jailer_binary: Cow<'j, Path>,
+    chroot_base_dir: Cow<'j, Path>,
     pub(crate) mode: JailerMode,
     // TODO: We need an equivalent of ChrootStrategy.
 }
 
-impl<'c> Jailer<'c> {
+impl<'j> Jailer<'j> {
     /// Create a new `JailerBuilder` instance.
-    pub fn builder() -> JailerBuilder<'c> {
+    pub fn builder() -> JailerBuilder<'j> {
         JailerBuilder(Jailer {
             gid: users::get_effective_gid(),
             uid: users::get_effective_uid(),
@@ -99,9 +99,9 @@ pub struct Stdio {
 
 /// Builder for `Jailer` instances.
 #[derive(Debug)]
-pub struct JailerBuilder<'c>(Jailer<'c>);
+pub struct JailerBuilder<'j>(Jailer<'j>);
 
-impl<'c> JailerBuilder<'c> {
+impl<'j> JailerBuilder<'j> {
     /// GID the jailer switches to as it execs the target binary.
     pub fn gid(mut self, gid: u32) -> Self {
         self.0.gid = gid;
@@ -135,7 +135,7 @@ impl<'c> JailerBuilder<'c> {
     /// with the jailer is mostly Firecracker specific.
     pub fn exec_file<P>(mut self, exec_file: P) -> Self
     where
-        P: Into<Cow<'c, Path>>,
+        P: Into<Cow<'j, Path>>,
     {
         self.0.exec_file = exec_file.into();
         self
@@ -151,7 +151,7 @@ impl<'c> JailerBuilder<'c> {
     /// If not specified it defaults to "jailer".
     pub fn jailer_binary<P>(mut self, jailer_binary: P) -> Self
     where
-        P: Into<Cow<'c, Path>>,
+        P: Into<Cow<'j, Path>>,
     {
         self.0.jailer_binary = jailer_binary.into();
         self
@@ -162,7 +162,7 @@ impl<'c> JailerBuilder<'c> {
     /// The default is `/srv/jailer`.
     pub fn chroot_base_dir<P>(mut self, chroot_base_dir: P) -> Self
     where
-        P: Into<Cow<'c, Path>>,
+        P: Into<Cow<'j, Path>>,
     {
         self.0.chroot_base_dir = chroot_base_dir.into();
         self
@@ -175,7 +175,7 @@ impl<'c> JailerBuilder<'c> {
     }
 
     /// Build the `Jailer` instance.
-    pub fn build(self) -> Jailer<'c> {
+    pub fn build(self) -> Jailer<'j> {
         self.0
     }
 }
