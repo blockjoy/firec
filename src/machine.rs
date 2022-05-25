@@ -12,9 +12,11 @@ use crate::{
 };
 use serde::Serialize;
 use serde_json::json;
+use sysinfo::{Pid, ProcessExt, System, SystemExt};
 use tokio::{
     fs::{copy, DirBuilder},
     process::Command,
+    task,
     time::sleep,
 };
 use tracing::{info, instrument, trace};
@@ -29,7 +31,7 @@ const KERNEL_IMAGE_FILENAME: &str = "kernel";
 #[derive(Debug)]
 pub struct Machine<'m> {
     config: Config<'m>,
-    pid: u32,
+    pid: i32,
     client: Client<UnixConnector>,
 }
 
@@ -188,10 +190,10 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Running command: {:?}", cmd);
         let mut child = cmd.spawn()?;
         let pid = match child.id() {
-            Some(id) => id,
+            Some(id) => id.try_into()?,
             None => {
                 let exit_status = child.wait().await?;
-                return Err(Error::ProcessExitedEarly { exit_status });
+                return Err(Error::ProcessExitedImmediatelly { exit_status });
             }
         };
 
@@ -238,8 +240,21 @@ impl<'m> Machine<'m> {
     pub async fn stop(&mut self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
-        let child = heim::process::get(self.pid.try_into()?).await?;
-        child.kill().await?;
+
+        let pid = self.pid;
+        let killed = task::spawn_blocking(move || {
+            let sys = System::new_all();
+            match sys.process(Pid::from(pid)) {
+                Some(process) => Ok(process.kill()),
+                None => Err(Error::ProcessNotRunning(pid)),
+            }
+        })
+        .await??;
+
+        if !killed {
+            return Err(Error::ProcessNotKilled(pid));
+        }
+
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: VM sent KILL signal successfully.");
 

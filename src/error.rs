@@ -15,10 +15,6 @@ pub enum Error {
     #[error("Hyper error")]
     Hyper(#[from] hyper::Error),
 
-    /// Heim process error.
-    #[error("Heim process error")]
-    Process(#[from] heim::process::ProcessError),
-
     /// HTTP error.
     #[error("HTTP error")]
     Http(#[from] hyper::http::Error),
@@ -30,6 +26,10 @@ pub enum Error {
     /// Integral type conversion error.
     #[error("Integral type conversion error")]
     TryFromIntError(#[from] std::num::TryFromIntError),
+
+    /// Task join error.
+    #[error("Task join error")]
+    JoinError(#[from] tokio::task::JoinError),
 
     /// Invalid Jailer executable path specified.
     #[error("Invalid Jailer executable path specified")]
@@ -51,9 +51,17 @@ pub enum Error {
     #[error("Invalid chroot base path specified")]
     InvalidChrootBasePath,
 
-    /// Process exited early.
-    #[error("Process exited early with exit status: {exit_status}")]
-    ProcessExitedEarly {
+    /// Process not running
+    #[error("Process not running for pid: {0}")]
+    ProcessNotRunning(i32),
+
+    /// Process not killed
+    #[error("Process not killed for pid: {0}")]
+    ProcessNotKilled(i32),
+
+    /// Process exited immediatelly after start.
+    #[error("Process exited immediatelly with status: {exit_status}")]
+    ProcessExitedImmediatelly {
         /// Result of a process after it has terminated
         exit_status: std::process::ExitStatus,
     },
