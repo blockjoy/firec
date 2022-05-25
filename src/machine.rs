@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    config::{network, Config, JailerMode},
+    config::{Config, JailerMode},
     Error,
 };
 use serde::Serialize;
@@ -18,7 +18,6 @@ use tokio::{
     time::sleep,
 };
 use tracing::{info, instrument, trace};
-use uuid::Uuid;
 
 use hyper::{Body, Client, Method, Request};
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
@@ -40,10 +39,7 @@ impl<'m> Machine<'m> {
     /// The machine is not started yet.
     #[instrument]
     pub async fn new(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
-        if config.vm_id == None {
-            config.vm_id = Some(Uuid::new_v4());
-        }
-        let vm_id = config.vm_id.as_ref().cloned().expect("VM ID is not set");
+        let vm_id = *config.vm_id();
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
 
@@ -68,12 +64,12 @@ impl<'m> Machine<'m> {
 
         // Assemble the path to the jailed root folder on the host.
         let exec_file_base = jailer
-            .exec_file
+            .exec_file()
             .file_name()
             .ok_or(Error::InvalidJailerExecPath)?;
-        let id_str = jailer.id.to_string();
+        let id_str = jailer.id().to_string();
         let jailer_workspace_dir = jailer
-            .chroot_base_dir
+            .chroot_base_dir()
             .join(exec_file_base)
             .join(&id_str)
             .join("root");
@@ -117,17 +113,17 @@ impl<'m> Machine<'m> {
         // Copy all drives to the rootfs.
         for drive in &mut config.drives {
             let drive_filename = drive
-                .path_on_host
+                .path_on_host()
                 .file_name()
                 .ok_or(Error::InvalidDrivePath)?;
             let dest = jailer_workspace_dir.join(drive_filename);
             trace!(
                 "{vm_id}: Copying drive `{}` from `{}` to `{}`",
-                drive.drive_id,
-                drive.path_on_host.display(),
+                drive.drive_id(),
+                drive.path_on_host().display(),
                 dest.display()
             );
-            copy(&drive.path_on_host, dest).await?;
+            copy(&drive.path_on_host(), dest).await?;
 
             drive.path_on_host = PathBuf::from(drive_filename).into();
         }
@@ -159,23 +155,23 @@ impl<'m> Machine<'m> {
 
         // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
-        let mut cmd = Command::new(jailer.jailer_binary.as_os_str());
+        let mut cmd = Command::new(jailer.jailer_binary().as_os_str());
         let mut cmd = cmd
             .args(&[
                 "--id",
                 &id_str,
                 "--exec-file",
                 jailer
-                    .exec_file
+                    .exec_file()
                     .to_str()
                     .ok_or(Error::InvalidJailerExecPath)?,
                 "--uid",
-                &jailer.uid.to_string(),
+                &jailer.uid().to_string(),
                 "--gid",
-                &jailer.gid.to_string(),
+                &jailer.gid().to_string(),
                 "--chroot-base-dir",
                 jailer
-                    .chroot_base_dir
+                    .chroot_base_dir()
                     .to_str()
                     .ok_or(Error::InvalidChrootBasePath)?,
                 // `firecracker` binary args.
@@ -220,11 +216,11 @@ impl<'m> Machine<'m> {
     /// Start the machine.
     #[instrument]
     pub async fn start(&mut self) -> Result<(), Error> {
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Starting the VM...");
         // Start the machine.
         self.send_action(Action::InstanceStart).await?;
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: VM started successfully.");
 
         Ok(())
@@ -233,10 +229,10 @@ impl<'m> Machine<'m> {
     /// Stop the machine.
     #[instrument]
     pub async fn stop(&mut self) -> Result<(), Error> {
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
         self.child.kill().await?;
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: VM sent KILL signal successfully.");
 
         Ok(())
@@ -245,10 +241,10 @@ impl<'m> Machine<'m> {
     /// Shutdown requests a clean shutdown of the VM by sending CtrlAltDelete on the virtual keyboard.
     #[instrument]
     pub async fn shutdown(&mut self) -> Result<(), Error> {
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
         self.send_action(Action::SendCtrlAltDel).await?;
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: CTRL+ALT+DEL sent to VM successfully.");
 
         Ok(())
@@ -275,9 +271,9 @@ impl<'m> Machine<'m> {
 
     #[instrument]
     async fn setup_resources(&mut self) -> Result<(), Error> {
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring machine resources...");
-        let json = serde_json::to_string(&self.config.machine_cfg)?;
+        let json = serde_json::to_string(self.config.machine_cfg())?;
         let url: hyper::Uri = Uri::new(&self.config.socket_path, "/machine-config").into();
         let request = Request::builder()
             .method(Method::PUT)
@@ -293,7 +289,7 @@ impl<'m> Machine<'m> {
 
     #[instrument]
     async fn setup_boot_source(&mut self) -> Result<(), Error> {
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring boot source...");
         let boot_source = self.config.boot_source();
         let json = serde_json::to_string(&boot_source)?;
@@ -312,10 +308,10 @@ impl<'m> Machine<'m> {
 
     #[instrument]
     async fn setup_drives(&mut self) -> Result<(), Error> {
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring drives...");
         for drive in &self.config.drives {
-            let path = format!("/drives/{}", drive.drive_id);
+            let path = format!("/drives/{}", drive.drive_id());
             let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
             let json = serde_json::to_string(&drive)?;
 
@@ -334,18 +330,16 @@ impl<'m> Machine<'m> {
 
     #[instrument]
     async fn setup_network(&mut self) -> Result<(), Error> {
-        let vm_id = self.vm_id();
+        let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring network...");
         // TODO: check for at least one interface.
-        let network = &self.config.network_interfaces[0];
-        let network::Interface::Cni(cni) = network;
-        let iface_id = cni.vm_if_name.as_ref().unwrap_or(&cni.network_name);
+        let network = &self.config.network_interfaces()[0];
         let json = json!({
-            "iface_id": iface_id,
-            "host_dev_name": cni.if_name,
+            "iface_id": network.vm_if_name(),
+            "host_dev_name": network.host_if_name(),
         });
         let json = serde_json::to_string(&json)?;
-        let path = format!("/network-interfaces/{}", iface_id);
+        let path = format!("/network-interfaces/{}", network.vm_if_name());
         let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
         let request = Request::builder()
             .method(Method::PUT)
@@ -357,10 +351,6 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Network configured successfully.");
 
         Ok(())
-    }
-
-    fn vm_id(&self) -> &Uuid {
-        self.config.vm_id.as_ref().expect("VM ID is not set")
     }
 }
 

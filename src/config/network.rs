@@ -2,34 +2,43 @@ use std::borrow::Cow;
 
 /// Network configuration.
 #[derive(Debug)]
-pub enum Interface<'i> {
-    /// CNIConfiguration that will be used to generate the VM's network namespace,
-    /// tap device and internal network for this network interface.
-    Cni(Cni<'i>),
+pub struct Interface<'i> {
+    host_if_name: Cow<'i, str>,
+    vm_if_name: Cow<'i, str>,
 }
 
-/// CNI network configuration.
-// TODO: Provide a builder for `Cni`.
-#[derive(Debug, Default)]
-pub struct Cni<'c> {
-    /// Corresponds to the "name" parameter in the CNI spec's
-    /// Network Configuration List structure. It selects the name
-    /// of the network whose configuration will be used when invoking CNI.
-    pub network_name: Cow<'c, str>,
+impl<'i> Interface<'i> {
+    /// Create a new `Interface` instance.
+    pub fn new<H, V>(host_if_name: H, vm_if_name: V) -> Self
+    where
+        H: Into<Cow<'i, str>>,
+        V: Into<Cow<'i, str>>,
+    {
+        Interface {
+            host_if_name: host_if_name.into(),
+            vm_if_name: vm_if_name.into(),
+        }
+    }
 
-    /// IfName (optional) corresponds to the CNI_IFNAME parameter as specified
-    /// in the CNI spec. It generally specifies the name of the interface to be
-    /// created by a CNI plugin being invoked.
-    ///
-    /// Note that this does NOT necessarily correspond to the name of the
-    /// tap device the Firecracker VM will use as the tap device may be
-    /// created by a chained plugin that adapts the tap to a pre-existing
-    /// network device (which will by the one with "IfName").
-    pub if_name: Option<Cow<'c, str>>,
+    /// The name of the host interface.
+    pub fn host_if_name(&self) -> &str {
+        &self.host_if_name
+    }
 
-    /// Sets the interface name in the VM. It is used
-    /// to correctly pass IP configuration obtained from the CNI to the VM kernel.
-    /// It can be left blank for VMs with single network interface.
-    pub vm_if_name: Option<Cow<'c, str>>,
-    // TODO: Other fields: https://pkg.go.dev/github.com/firecracker-microvm/firecracker-go-sdk#CNIConfiguration
+    /// The interface name in the VM.
+    pub fn vm_if_name(&self) -> &str {
+        &self.vm_if_name
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore]
+    fn string_generics() {
+        // Compile-only test to ensure the generics work for both string types.
+        let _ = super::Interface::new("host_if_name", "vm_if_name");
+        // Different types are fine, as long as they've the same lifetime.
+        let _ = super::Interface::new("host_if_name".to_string(), "vm_if_name");
+    }
 }
