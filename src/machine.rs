@@ -14,7 +14,7 @@ use serde::Serialize;
 use serde_json::json;
 use tokio::{
     fs::{copy, DirBuilder},
-    process::{Child, Command},
+    process::Command,
     time::sleep,
 };
 use tracing::{info, instrument, trace};
@@ -29,7 +29,7 @@ const KERNEL_IMAGE_FILENAME: &str = "kernel";
 #[derive(Debug)]
 pub struct Machine<'m> {
     config: Config<'m>,
-    child: Child,
+    pid: u32,
     client: Client<UnixConnector>,
 }
 
@@ -186,7 +186,14 @@ impl<'m> Machine<'m> {
             cmd = cmd.arg(daemonize_arg);
         }
         trace!("{vm_id}: Running command: {:?}", cmd);
-        let child = cmd.spawn()?;
+        let mut child = cmd.spawn()?;
+        let pid = match child.id() {
+            Some(id) => id,
+            None => {
+                let exit_status = child.wait().await?;
+                return Err(Error::ProcessExitedEarly { exit_status });
+            }
+        };
 
         // Give some time to the jailer to start up and create the socket.
         // FIXME: We should monitor the socket instead?
@@ -199,7 +206,7 @@ impl<'m> Machine<'m> {
 
         let mut machine = Self {
             config,
-            child,
+            pid,
             client,
         };
 
@@ -231,7 +238,8 @@ impl<'m> Machine<'m> {
     pub async fn stop(&mut self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
-        self.child.kill().await?;
+        let child = heim::process::get(self.pid.try_into()?).await?;
+        child.kill().await?;
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: VM sent KILL signal successfully.");
 
