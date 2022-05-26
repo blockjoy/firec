@@ -1,6 +1,6 @@
 [package]
 name = "firec"
-description = "Rust API to interact with firecracker"
+description = "Rust API to interact with Firecracker"
 version = "0.1.0"
 edition = "2021"
 keywords = ["firecracker", "unix", "linux", "microvm", "IPC"]
