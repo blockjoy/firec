@@ -62,4 +62,4 @@ Currently heavily in development and therefore expect a lot of API breakage for 
 Having said that, we'll be following Cargo's SemVer rules so breaking changes will be released in
 new minor releases. However, we will only support the latest release.
 
-[firecracker]: https://github.com/firecracker-microvm/firecracker/blob/main/src/api_server/swagger/firecracker.yaml
+[firecracker]: https://github.com/firecracker-microvm/firecracker/
