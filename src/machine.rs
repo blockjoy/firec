@@ -40,7 +40,7 @@ impl<'m> Machine<'m> {
     ///
     /// The machine is not started yet.
     #[instrument]
-    pub async fn new(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
+    pub async fn create(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
         let vm_id = *config.vm_id();
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
