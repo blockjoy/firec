@@ -12,7 +12,7 @@ use crate::{
 };
 use serde::Serialize;
 use serde_json::json;
-use sysinfo::{Pid, ProcessExt, System, SystemExt};
+use sysinfo::{Pid, ProcessExt, ProcessRefreshKind, System, SystemExt};
 use tokio::{
     fs::{copy, DirBuilder},
     process::Command,
@@ -243,10 +243,14 @@ impl<'m> Machine<'m> {
 
         let pid = self.pid;
         let killed = task::spawn_blocking(move || {
-            let sys = System::new_all();
-            match sys.process(Pid::from(pid)) {
-                Some(process) => Ok(process.kill()),
-                None => Err(Error::ProcessNotRunning(pid)),
+            let mut sys = System::new();
+            if sys.refresh_process_specifics(Pid::from(pid), ProcessRefreshKind::new()) {
+                match sys.process(Pid::from(pid)) {
+                    Some(process) => Ok(process.kill()),
+                    None => Err(Error::ProcessNotRunning(pid)),
+                }
+            } else {
+                Err(Error::ProcessNotRunning(pid))
             }
         })
         .await??;
