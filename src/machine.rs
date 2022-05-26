@@ -40,7 +40,7 @@ impl<'m> Machine<'m> {
     ///
     /// The machine is not started yet.
     #[instrument]
-    pub async fn new(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
+    pub async fn create(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
         let vm_id = *config.vm_id();
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
@@ -206,7 +206,7 @@ impl<'m> Machine<'m> {
         // approach using hyper: https://github.com/seanmonstar/reqwest/issues/39
         let client = Client::unix();
 
-        let mut machine = Self {
+        let machine = Self {
             config,
             pid,
             client,
@@ -224,12 +224,11 @@ impl<'m> Machine<'m> {
 
     /// Start the machine.
     #[instrument]
-    pub async fn start(&mut self) -> Result<(), Error> {
+    pub async fn start(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Starting the VM...");
         // Start the machine.
         self.send_action(Action::InstanceStart).await?;
-        let vm_id = self.config.vm_id();
         trace!("{vm_id}: VM started successfully.");
 
         Ok(())
@@ -237,7 +236,7 @@ impl<'m> Machine<'m> {
 
     /// Stop the machine.
     #[instrument]
-    pub async fn stop(&mut self) -> Result<(), Error> {
+    pub async fn stop(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
 
@@ -259,7 +258,6 @@ impl<'m> Machine<'m> {
             return Err(Error::ProcessNotKilled(pid));
         }
 
-        let vm_id = self.config.vm_id();
         trace!("{vm_id}: VM sent KILL signal successfully.");
 
         Ok(())
@@ -267,11 +265,10 @@ impl<'m> Machine<'m> {
 
     /// Shutdown requests a clean shutdown of the VM by sending CtrlAltDelete on the virtual keyboard.
     #[instrument]
-    pub async fn shutdown(&mut self) -> Result<(), Error> {
+    pub async fn shutdown(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
         self.send_action(Action::SendCtrlAltDel).await?;
-        let vm_id = self.config.vm_id();
         trace!("{vm_id}: CTRL+ALT+DEL sent to VM successfully.");
 
         Ok(())
@@ -282,7 +279,7 @@ impl<'m> Machine<'m> {
         &self.config
     }
 
-    async fn send_action(&mut self, action: Action) -> Result<(), Error> {
+    async fn send_action(&self, action: Action) -> Result<(), Error> {
         let url: hyper::Uri = Uri::new(&self.config.socket_path, "/actions").into();
         let json = serde_json::to_string(&action)?;
         let request = Request::builder()
@@ -297,7 +294,7 @@ impl<'m> Machine<'m> {
     }
 
     #[instrument]
-    async fn setup_resources(&mut self) -> Result<(), Error> {
+    async fn setup_resources(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring machine resources...");
         let json = serde_json::to_string(self.config.machine_cfg())?;
@@ -315,7 +312,7 @@ impl<'m> Machine<'m> {
     }
 
     #[instrument]
-    async fn setup_boot_source(&mut self) -> Result<(), Error> {
+    async fn setup_boot_source(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring boot source...");
         let boot_source = self.config.boot_source();
@@ -334,7 +331,7 @@ impl<'m> Machine<'m> {
     }
 
     #[instrument]
-    async fn setup_drives(&mut self) -> Result<(), Error> {
+    async fn setup_drives(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring drives...");
         for drive in &self.config.drives {
@@ -356,7 +353,7 @@ impl<'m> Machine<'m> {
     }
 
     #[instrument]
-    async fn setup_network(&mut self) -> Result<(), Error> {
+    async fn setup_network(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring network...");
         // TODO: check for at least one interface.
