@@ -134,13 +134,7 @@ impl<'m> Machine<'m> {
 
         // Adjust socket file path.
         let socket_path = config.socket_path;
-        let relative_path = if socket_path.has_root() {
-            socket_path
-                .strip_prefix("/")
-                .map_err(|_| Error::InvalidSocketPath)?
-        } else {
-            &socket_path
-        };
+        let relative_path = socket_path.strip_prefix("/").unwrap_or(&socket_path);
         config.socket_path = jailer_workspace_dir.join(relative_path).into();
         info!(
             "{vm_id}: Host socket path: `{}`",
