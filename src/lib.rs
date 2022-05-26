@@ -10,3 +10,8 @@ mod machine;
 
 pub use error::*;
 pub use machine::*;
+
+#[cfg(doctest)]
+mod doctests {
+    doc_comment::doctest!("../README.md");
+}
