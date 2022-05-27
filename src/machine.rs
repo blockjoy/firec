@@ -151,8 +151,11 @@ impl<'m> Machine<'m> {
 
         // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
-        let mut cmd = Command::new(jailer.jailer_binary().as_os_str());
-        let mut cmd = cmd
+        let mut cmd = &mut Command::new(jailer.jailer_binary().as_os_str());
+        if let Some(daemonize_arg) = daemonize_arg {
+            cmd = cmd.arg(daemonize_arg);
+        }
+        let cmd = cmd
             .args(&[
                 "--id",
                 &id_str,
@@ -178,9 +181,6 @@ impl<'m> Machine<'m> {
             .stdin(stdin)
             .stdout(stdout)
             .stderr(stderr);
-        if let Some(daemonize_arg) = daemonize_arg {
-            cmd = cmd.arg(daemonize_arg);
-        }
         trace!("{vm_id}: Running command: {:?}", cmd);
         let mut child = cmd.spawn()?;
         let pid = match child.id() {
