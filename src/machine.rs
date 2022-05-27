@@ -273,6 +273,11 @@ impl<'m> Machine<'m> {
         &self.config
     }
 
+    /// Get the PID of the jailer/firecracker process
+    pub fn pid(&self) -> i32 {
+        self.pid
+    }
+
     async fn send_action(&self, action: Action) -> Result<(), Error> {
         let url: hyper::Uri = Uri::new(&self.config.socket_path, "/actions").into();
         let json = serde_json::to_string(&action)?;
