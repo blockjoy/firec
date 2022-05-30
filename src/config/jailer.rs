@@ -2,14 +2,12 @@
 
 use derivative::Derivative;
 use std::{borrow::Cow, path::Path};
-use uuid::Uuid;
 
 /// Jailer specific configuration needed to execute the jailer.
 #[derive(Debug)]
 pub struct Jailer<'j> {
     gid: u32,
     uid: u32,
-    id: Uuid,
     numa_node: Option<i32>,
     exec_file: Cow<'j, Path>,
     jailer_binary: Cow<'j, Path>,
@@ -24,7 +22,6 @@ impl<'j> Jailer<'j> {
         JailerBuilder(Jailer {
             gid: users::get_effective_gid(),
             uid: users::get_effective_uid(),
-            id: uuid::Uuid::new_v4(),
             numa_node: None,
             exec_file: Path::new("/usr/bin/firecracker").into(),
             jailer_binary: Path::new("jailer").into(),
@@ -41,11 +38,6 @@ impl<'j> Jailer<'j> {
     /// UID the jailer switches to as it execs the target binary.
     pub fn uid(&self) -> u32 {
         self.uid
-    }
-
-    /// The unique VM identification.
-    pub fn id(&self) -> &Uuid {
-        &self.id
     }
 
     /// The NUMA node the process gets assigned to.
@@ -111,15 +103,6 @@ impl<'j> JailerBuilder<'j> {
     /// UID the jailer switches to as it execs the target binary.
     pub fn uid(mut self, uid: u32) -> Self {
         self.0.uid = uid;
-        self
-    }
-
-    /// The unique VM identification string
-    ///
-    /// This may contain alphanumeric characters and hyphens. The maximum id length is currently 64
-    /// characters
-    pub fn id(mut self, id: Uuid) -> Self {
-        self.0.id = id;
         self
     }
 
