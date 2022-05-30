@@ -134,13 +134,7 @@ impl<'m> Machine<'m> {
 
         // Adjust socket file path.
         let socket_path = config.socket_path;
-        let relative_path = if socket_path.has_root() {
-            socket_path
-                .strip_prefix("/")
-                .map_err(|_| Error::InvalidSocketPath)?
-        } else {
-            &socket_path
-        };
+        let relative_path = socket_path.strip_prefix("/").unwrap_or(&socket_path);
         config.socket_path = jailer_workspace_dir.join(relative_path).into();
         info!(
             "{vm_id}: Host socket path: `{}`",
@@ -157,8 +151,11 @@ impl<'m> Machine<'m> {
 
         // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
-        let mut cmd = Command::new(jailer.jailer_binary().as_os_str());
-        let mut cmd = cmd
+        let mut cmd = &mut Command::new(jailer.jailer_binary().as_os_str());
+        if let Some(daemonize_arg) = daemonize_arg {
+            cmd = cmd.arg(daemonize_arg);
+        }
+        let cmd = cmd
             .args(&[
                 "--id",
                 &id_str,
@@ -184,9 +181,6 @@ impl<'m> Machine<'m> {
             .stdin(stdin)
             .stdout(stdout)
             .stderr(stderr);
-        if let Some(daemonize_arg) = daemonize_arg {
-            cmd = cmd.arg(daemonize_arg);
-        }
         trace!("{vm_id}: Running command: {:?}", cmd);
         let mut child = cmd.spawn()?;
         let pid = match child.id() {
@@ -277,6 +271,11 @@ impl<'m> Machine<'m> {
     /// Get the configuration of the machine.
     pub fn config(&self) -> &Config<'m> {
         &self.config
+    }
+
+    /// Get the PID of the jailer/firecracker process
+    pub fn pid(&self) -> i32 {
+        self.pid
     }
 
     async fn send_action(&self, action: Action) -> Result<(), Error> {
