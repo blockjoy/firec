@@ -69,7 +69,7 @@ impl<'m> Machine<'m> {
             .exec_file()
             .file_name()
             .ok_or(Error::InvalidJailerExecPath)?;
-        let id_str = jailer.id().to_string();
+        let id_str = vm_id.to_string();
         let jailer_workspace_dir = jailer
             .chroot_base_dir()
             .join(exec_file_base)
