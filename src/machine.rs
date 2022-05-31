@@ -1,10 +1,6 @@
 //! A VMM machine.
 
-use std::{
-    path::{Path, PathBuf},
-    process::Stdio,
-    time::Duration,
-};
+use std::{process::Stdio, time::Duration};
 
 use crate::{
     config::{Config, JailerMode},
@@ -24,9 +20,6 @@ use tracing::{info, instrument, trace};
 use hyper::{Body, Client, Method, Request};
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 
-// FIXME: Hardcoding for now. This should come from ChrootStrategy enum, when we've that.
-const KERNEL_IMAGE_FILENAME: &str = "kernel";
-
 /// A VMM machine.
 #[derive(Debug)]
 pub struct Machine<'m> {
@@ -45,7 +38,62 @@ impl<'m> Machine<'m> {
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
 
-        // TOOD: Validate other parts of config, e.g paths.
+        let id_str = vm_id.to_string();
+
+        let jailer_workspace_dir = config.jailer_workspace_dir.as_ref();
+        info!(
+            "{vm_id}: Ensuring Jailer workspace directory exist at `{}`",
+            jailer_workspace_dir.display()
+        );
+        DirBuilder::new()
+            .recursive(true)
+            .create(jailer_workspace_dir)
+            .await?;
+
+        let dest = config.host_kernel_image_path.as_ref();
+        trace!(
+            "{vm_id}: Copying kernel image from `{}` to `{}`",
+            config.kernel_image_path.display(),
+            dest.display()
+        );
+        copy(config.kernel_image_path(), dest).await?;
+
+        if let (Some(initrd_path), Some(host_initrd_path)) = (
+            config.initrd_path.as_ref(),
+            config.host_initrd_path.as_ref(),
+        ) {
+            trace!(
+                "{vm_id}: Copying initrd from `{}` to `{}`",
+                initrd_path.display(),
+                host_initrd_path.display()
+            );
+            copy(initrd_path.as_os_str(), host_initrd_path.as_os_str()).await?;
+        }
+
+        for drive in &config.drives {
+            let drive_filename = drive
+                .path_on_host()
+                .file_name()
+                .ok_or(Error::InvalidDrivePath)?;
+            let dest = jailer_workspace_dir.join(drive_filename);
+            trace!(
+                "{vm_id}: Copying drive `{}` from `{}` to `{}`",
+                drive.drive_id(),
+                drive.path_on_host().display(),
+                dest.display()
+            );
+            copy(&drive.path_on_host(), dest).await?;
+        }
+
+        if let Some(socket_dir) = config.host_socket_path.parent() {
+            trace!(
+                "{vm_id}: Ensuring socket directory exist at `{}`",
+                socket_dir.display()
+            );
+            DirBuilder::new().recursive(true).create(socket_dir).await?;
+        }
+
+        // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
         // FIXME: Assuming jailer for now.
         let jailer = config.jailer_cfg.as_mut().expect("no jailer config");
@@ -63,93 +111,6 @@ impl<'m> Machine<'m> {
                 stdio.stderr.take().unwrap_or_else(Stdio::inherit),
             ),
         };
-
-        // Assemble the path to the jailed root folder on the host.
-        let exec_file_base = jailer
-            .exec_file()
-            .file_name()
-            .ok_or(Error::InvalidJailerExecPath)?;
-        let id_str = vm_id.to_string();
-        let jailer_workspace_dir = jailer
-            .chroot_base_dir()
-            .join(exec_file_base)
-            .join(&id_str)
-            .join("root");
-        info!(
-            "{vm_id}: Jailer workspace dir: {}",
-            jailer_workspace_dir.display()
-        );
-        DirBuilder::new()
-            .recursive(true)
-            .create(&jailer_workspace_dir)
-            .await?;
-
-        // Copy the kernel image to the rootfs.
-        let dest = jailer_workspace_dir.join(KERNEL_IMAGE_FILENAME);
-        trace!(
-            "{vm_id}: Copying kernel image from `{}` to `{}`",
-            config.kernel_image_path.display(),
-            dest.display()
-        );
-        copy(config.kernel_image_path, dest).await?;
-        // Now the initrd, if specified.
-        config.initrd_path = match config.initrd_path {
-            Some(initrd_path) => {
-                let initrd_filename = initrd_path
-                    .file_name()
-                    .ok_or(Error::InvalidInitrdPath)?
-                    .to_owned();
-                let dest = jailer_workspace_dir.join(&initrd_filename);
-                trace!(
-                    "{vm_id}: Copying initrd from `{}` to `{}`",
-                    initrd_path.display(),
-                    dest.display()
-                );
-                copy(initrd_path.as_os_str(), dest).await?;
-
-                Some(PathBuf::from(initrd_filename).into())
-            }
-            None => None,
-        };
-
-        // Copy all drives to the rootfs.
-        for drive in &mut config.drives {
-            let drive_filename = drive
-                .path_on_host()
-                .file_name()
-                .ok_or(Error::InvalidDrivePath)?;
-            let dest = jailer_workspace_dir.join(drive_filename);
-            trace!(
-                "{vm_id}: Copying drive `{}` from `{}` to `{}`",
-                drive.drive_id(),
-                drive.path_on_host().display(),
-                dest.display()
-            );
-            copy(&drive.path_on_host(), dest).await?;
-
-            drive.path_on_host = PathBuf::from(drive_filename).into();
-        }
-
-        config.kernel_image_path = Path::new(KERNEL_IMAGE_FILENAME).into();
-
-        // Adjust socket file path.
-        let socket_path = config.socket_path;
-        let relative_path = socket_path.strip_prefix("/").unwrap_or(&socket_path);
-        config.socket_path = jailer_workspace_dir.join(relative_path).into();
-        info!(
-            "{vm_id}: Host socket path: `{}`",
-            config.socket_path.display()
-        );
-        info!("{vm_id}: Guest socket path: `{}`", socket_path.display());
-        if let Some(socket_dir) = config.socket_path.parent() {
-            trace!(
-                "{vm_id}: Ensuring socket directory exist at `{}`",
-                socket_dir.display()
-            );
-            DirBuilder::new().recursive(true).create(socket_dir).await?;
-        }
-
-        // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
         let mut cmd = &mut Command::new(jailer.jailer_binary().as_os_str());
         if let Some(daemonize_arg) = daemonize_arg {
@@ -176,7 +137,10 @@ impl<'m> Machine<'m> {
                 // `firecracker` binary args.
                 "--",
                 "--api-sock",
-                socket_path.to_str().ok_or(Error::InvalidSocketPath)?,
+                config
+                    .socket_path
+                    .to_str()
+                    .ok_or(Error::InvalidSocketPath)?,
             ])
             .stdin(stdin)
             .stdout(stdout)
@@ -214,6 +178,24 @@ impl<'m> Machine<'m> {
         info!("{vm_id}: VM successfully setup.");
 
         Ok(machine)
+    }
+
+    /// Connect to already running machine.
+    ///
+    /// The machine should be created first via call to `create`.
+    #[instrument]
+    pub async fn connect(config: Config<'m>, pid: i32) -> Machine<'m> {
+        let vm_id = *config.vm_id();
+        info!("Connecting to machine with VM ID `{vm_id}`");
+        trace!("{vm_id}: Configuration: {:?}, pid: {}", config, pid);
+
+        let client = Client::unix();
+
+        Self {
+            config,
+            pid,
+            client,
+        }
     }
 
     /// Start the machine.
