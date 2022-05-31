@@ -16,17 +16,26 @@ pub use jailer::*;
 pub use machine::*;
 use uuid::Uuid;
 
+use crate::Error;
+
+// FIXME: Hardcoding for now. This should come from ChrootStrategy enum, when we've that.
+const KERNEL_IMAGE_FILENAME: &str = "kernel";
+
 /// VMM configuration.
 #[derive(Debug)]
 pub struct Config<'c> {
     pub(crate) socket_path: Cow<'c, Path>,
+    pub(crate) host_socket_path: Cow<'c, Path>,
     log_path: Option<Cow<'c, Path>>,
     log_fifo: Option<Cow<'c, Path>>,
     log_level: Option<LogLevel>,
     metrics_path: Option<Cow<'c, Path>>,
     metrics_fifo: Option<Cow<'c, Path>>,
+    pub(crate) jailer_workspace_dir: Cow<'c, Path>,
     pub(crate) kernel_image_path: Cow<'c, Path>,
+    pub(crate) host_kernel_image_path: Cow<'c, Path>,
     pub(crate) initrd_path: Option<Cow<'c, Path>>,
+    pub(crate) host_initrd_path: Option<Cow<'c, Path>>,
     kernel_args: Option<Cow<'c, str>>,
     pub(crate) drives: Vec<Drive<'c>>,
 
@@ -60,13 +69,17 @@ impl<'c> Config<'c> {
     {
         Builder(Self {
             socket_path: Path::new("/run/firecracker.socket").into(),
+            host_socket_path: Path::new("/srv/jailer/firecracker/root/firecracker.socket").into(),
             log_path: None,
             log_fifo: None,
             log_level: None,
             metrics_path: None,
             metrics_fifo: None,
+            jailer_workspace_dir: Path::new("/srv/jailer/firecracker/root").into(),
             kernel_image_path: kernel_image_path.into(),
+            host_kernel_image_path: Path::new("/srv/jailer/firecracker/root/debian-vmlinux").into(),
             initrd_path: None,
+            host_initrd_path: None,
             kernel_args: None,
             drives: Vec::new(),
             machine_cfg: Machine::builder().build(),
@@ -309,7 +322,96 @@ impl<'c> Builder<'c> {
     }
 
     /// Build the configuration.
-    pub fn build(self) -> Config<'c> {
-        self.0
+    pub fn build(mut self) -> Result<Config<'c>, Error> {
+        // TODO: Validate other parts of config, e.g paths.
+
+        // FIXME: Assuming jailer for now.
+        let jailer = self.0.jailer_cfg.as_ref().expect("no jailer config");
+
+        let exec_file_base = jailer
+            .exec_file()
+            .file_name()
+            .ok_or(Error::InvalidJailerExecPath)?;
+        let id_str = self.0.vm_id().to_string();
+        self.0.jailer_workspace_dir = jailer
+            .chroot_base_dir()
+            .join(exec_file_base)
+            .join(&id_str)
+            .join("root")
+            .into();
+
+        self.0.host_initrd_path = match self.0.initrd_path.as_ref() {
+            Some(initrd_path) => {
+                let initrd_filename = initrd_path
+                    .file_name()
+                    .ok_or(Error::InvalidInitrdPath)?
+                    .to_owned();
+                Some(self.0.jailer_workspace_dir.join(&initrd_filename).into())
+            }
+            None => None,
+        };
+
+        self.0.host_kernel_image_path = self
+            .0
+            .jailer_workspace_dir
+            .join(KERNEL_IMAGE_FILENAME)
+            .into();
+
+        let socket_path = self.0.socket_path.as_ref();
+        let relative_path = socket_path.strip_prefix("/").unwrap_or(socket_path);
+        self.0.host_socket_path = self.0.jailer_workspace_dir.join(relative_path).into();
+
+        Ok(self.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use Uuid;
+
+    #[test]
+    fn config_host_values() {
+        let id = Uuid::new_v4();
+
+        let jailer = Jailer::builder()
+            .chroot_base_dir(Path::new("/chroot"))
+            .exec_file(Path::new("/usr/bin/firecracker"))
+            .mode(JailerMode::Daemon)
+            .build();
+
+        let root_drive = Drive::builder("root", Path::new("/tmp/debian.ext4"))
+            .is_root_device(true)
+            .build();
+
+        let config = Config::builder(Path::new("/tmp/kernel.path"))
+            .vm_id(id)
+            .jailer_cfg(Some(jailer))
+            .initrd_path(Some(Path::new("/tmp/initrd.img")))
+            .add_drive(root_drive)
+            .socket_path(Path::new("/firecracker.socket"))
+            .build()
+            .unwrap();
+
+        assert_eq!(config.initrd_path.unwrap().as_os_str(), "/tmp/initrd.img");
+        assert_eq!(
+            config
+                .host_initrd_path
+                .unwrap()
+                .as_os_str()
+                .to_string_lossy(),
+            format!("/chroot/firecracker/{}/root/initrd.img", id)
+        );
+
+        assert_eq!(config.kernel_image_path.as_os_str(), "/tmp/kernel.path");
+        assert_eq!(
+            config.host_kernel_image_path.as_os_str().to_string_lossy(),
+            format!("/chroot/firecracker/{}/root/kernel", id)
+        );
+        assert_eq!(config.socket_path.as_os_str(), "/firecracker.socket");
+        assert_eq!(
+            config.host_socket_path.as_os_str().to_string_lossy(),
+            format!("/chroot/firecracker/{}/root/firecracker.socket", id)
+        );
     }
 }
