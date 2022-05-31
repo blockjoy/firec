@@ -32,7 +32,7 @@ impl<'m> Machine<'m> {
     /// Create a new machine.
     ///
     /// The machine is not started yet.
-    #[instrument]
+    #[instrument(skip_all)]
     pub async fn create(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
         let vm_id = *config.vm_id();
         info!("Creating new machine with VM ID `{vm_id}`");
@@ -183,7 +183,7 @@ impl<'m> Machine<'m> {
     /// Connect to already running machine.
     ///
     /// The machine should be created first via call to `create`.
-    #[instrument]
+    #[instrument(skip_all)]
     pub async fn connect(config: Config<'m>, pid: i32) -> Machine<'m> {
         let vm_id = *config.vm_id();
         info!("Connecting to machine with VM ID `{vm_id}`");
@@ -199,7 +199,7 @@ impl<'m> Machine<'m> {
     }
 
     /// Start the machine.
-    #[instrument]
+    #[instrument(skip_all)]
     pub async fn start(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Starting the VM...");
@@ -211,7 +211,7 @@ impl<'m> Machine<'m> {
     }
 
     /// Stop the machine.
-    #[instrument]
+    #[instrument(skip_all)]
     pub async fn stop(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
@@ -240,7 +240,7 @@ impl<'m> Machine<'m> {
     }
 
     /// Shutdown requests a clean shutdown of the VM by sending CtrlAltDelete on the virtual keyboard.
-    #[instrument]
+    #[instrument(skip_all)]
     pub async fn shutdown(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
@@ -274,7 +274,7 @@ impl<'m> Machine<'m> {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip_all)]
     async fn setup_resources(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring machine resources...");
@@ -292,7 +292,7 @@ impl<'m> Machine<'m> {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip_all)]
     async fn setup_boot_source(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring boot source...");
@@ -311,7 +311,7 @@ impl<'m> Machine<'m> {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip_all)]
     async fn setup_drives(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring drives...");
@@ -333,7 +333,7 @@ impl<'m> Machine<'m> {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip_all)]
     async fn setup_network(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring network...");
