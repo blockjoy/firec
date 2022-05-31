@@ -180,6 +180,24 @@ impl<'m> Machine<'m> {
         Ok(machine)
     }
 
+    /// Connect to already running machine.
+    ///
+    /// The machine should be created first via call to `create`.
+    #[instrument]
+    pub async fn connect(config: Config<'m>, pid: i32) -> Machine<'m> {
+        let vm_id = *config.vm_id();
+        info!("Connecting to machine with VM ID `{vm_id}`");
+        trace!("{vm_id}: Configuration: {:?}, pid: {}", config, pid);
+
+        let client = Client::unix();
+
+        Self {
+            config,
+            pid,
+            client,
+        }
+    }
+
     /// Start the machine.
     #[instrument]
     pub async fn start(&self) -> Result<(), Error> {
