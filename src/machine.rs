@@ -260,16 +260,43 @@ impl<'m> Machine<'m> {
         self.pid
     }
 
+    #[instrument(skip_all)]
+    async fn send_request(&self, url: hyper::Uri, body: String) -> Result<(), Error> {
+        let vm_id = self.config.vm_id();
+        trace!("{vm_id}: sending request to url={url}, body={body}");
+
+        let request = Request::builder()
+            .method(Method::PUT)
+            .uri(url.clone())
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(Body::from(body))?;
+
+        let resp = self.client.request(request).await?;
+
+        let status = resp.status();
+        if status.is_success() {
+            trace!("{vm_id}: request to url={url} successful");
+        } else {
+            let body = hyper::body::to_bytes(resp.into_body()).await?;
+            let body = if body.is_empty() {
+                trace!("{vm_id}: request to url={url} failed: status={status}");
+                None
+            } else {
+                let body = String::from_utf8_lossy(&body).into_owned();
+                trace!("{vm_id}: request to url={url} failed: status={status}, body={body}");
+                Some(body)
+            };
+            return Err(Error::FirecrackerAPIError { status, body });
+        }
+
+        Ok(())
+    }
+
     async fn send_action(&self, action: Action) -> Result<(), Error> {
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path, "/actions").into();
         let json = serde_json::to_string(&action)?;
-        let request = Request::builder()
-            .method(Method::PUT)
-            .uri(url)
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .body(Body::from(json))?;
-        self.client.request(request).await?;
+        self.send_request(url, json).await?;
 
         Ok(())
     }
@@ -280,13 +307,7 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Configuring machine resources...");
         let json = serde_json::to_string(self.config.machine_cfg())?;
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path, "/machine-config").into();
-        let request = Request::builder()
-            .method(Method::PUT)
-            .uri(url)
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .body(Body::from(json))?;
-        self.client.request(request).await?;
+        self.send_request(url, json).await?;
         trace!("{vm_id}: Machine resources configured successfully.");
 
         Ok(())
@@ -299,13 +320,7 @@ impl<'m> Machine<'m> {
         let boot_source = self.config.boot_source();
         let json = serde_json::to_string(&boot_source)?;
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path, "/boot-source").into();
-        let request = Request::builder()
-            .method(Method::PUT)
-            .uri(url)
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .body(Body::from(json))?;
-        self.client.request(request).await?;
+        self.send_request(url, json).await?;
         trace!("{vm_id}: Boot source configured successfully.");
 
         Ok(())
@@ -319,14 +334,7 @@ impl<'m> Machine<'m> {
             let path = format!("/drives/{}", drive.drive_id());
             let url: hyper::Uri = Uri::new(&self.config.host_socket_path, &path).into();
             let json = serde_json::to_string(&drive)?;
-
-            let request = Request::builder()
-                .method(Method::PUT)
-                .uri(url)
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .body(Body::from(json))?;
-            self.client.request(request).await?;
+            self.send_request(url, json).await?;
         }
         trace!("{vm_id}: Drives configured successfully.");
 
@@ -346,13 +354,7 @@ impl<'m> Machine<'m> {
         let json = serde_json::to_string(&json)?;
         let path = format!("/network-interfaces/{}", network.vm_if_name());
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path, &path).into();
-        let request = Request::builder()
-            .method(Method::PUT)
-            .uri(url)
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .body(Body::from(json))?;
-        self.client.request(request).await?;
+        self.send_request(url, json).await?;
         trace!("{vm_id}: Network configured successfully.");
 
         Ok(())

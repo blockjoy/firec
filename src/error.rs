@@ -1,3 +1,4 @@
+use hyper::StatusCode;
 use thiserror::Error;
 
 /// Error type for this crate.
@@ -50,6 +51,15 @@ pub enum Error {
     /// Invalid chroot base path specified.
     #[error("Invalid chroot base path specified")]
     InvalidChrootBasePath,
+
+    /// Firecracker REST API error
+    #[error("Firecracker API call failed with status={status}, body={body:?}")]
+    FirecrackerAPIError {
+        /// Error HTTP status code
+        status: StatusCode,
+        /// Optional error message body
+        body: Option<String>,
+    },
 
     /// Process not running
     #[error("Process not running for pid: {0}")]
