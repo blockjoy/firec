@@ -261,7 +261,7 @@ impl<'m> Machine<'m> {
     }
 
     async fn send_action(&self, action: Action) -> Result<(), Error> {
-        let url: hyper::Uri = Uri::new(&self.config.socket_path, "/actions").into();
+        let url: hyper::Uri = Uri::new(&self.config.host_socket_path, "/actions").into();
         let json = serde_json::to_string(&action)?;
         let request = Request::builder()
             .method(Method::PUT)
@@ -279,7 +279,7 @@ impl<'m> Machine<'m> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring machine resources...");
         let json = serde_json::to_string(self.config.machine_cfg())?;
-        let url: hyper::Uri = Uri::new(&self.config.socket_path, "/machine-config").into();
+        let url: hyper::Uri = Uri::new(&self.config.host_socket_path, "/machine-config").into();
         let request = Request::builder()
             .method(Method::PUT)
             .uri(url)
@@ -298,7 +298,7 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Configuring boot source...");
         let boot_source = self.config.boot_source();
         let json = serde_json::to_string(&boot_source)?;
-        let url: hyper::Uri = Uri::new(&self.config.socket_path, "/boot-source").into();
+        let url: hyper::Uri = Uri::new(&self.config.host_socket_path, "/boot-source").into();
         let request = Request::builder()
             .method(Method::PUT)
             .uri(url)
@@ -317,7 +317,7 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Configuring drives...");
         for drive in &self.config.drives {
             let path = format!("/drives/{}", drive.drive_id());
-            let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
+            let url: hyper::Uri = Uri::new(&self.config.host_socket_path, &path).into();
             let json = serde_json::to_string(&drive)?;
 
             let request = Request::builder()
@@ -345,7 +345,7 @@ impl<'m> Machine<'m> {
         });
         let json = serde_json::to_string(&json)?;
         let path = format!("/network-interfaces/{}", network.vm_if_name());
-        let url: hyper::Uri = Uri::new(&self.config.socket_path, &path).into();
+        let url: hyper::Uri = Uri::new(&self.config.host_socket_path, &path).into();
         let request = Request::builder()
             .method(Method::PUT)
             .uri(url)
