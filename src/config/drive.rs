@@ -3,7 +3,7 @@ use std::{borrow::Cow, path::Path};
 use serde::{Deserialize, Serialize};
 
 /// Drive configuration.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Drive<'d> {
     drive_id: Cow<'d, str>,
     is_read_only: bool,

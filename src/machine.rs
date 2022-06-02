@@ -1,6 +1,6 @@
 //! A VMM machine.
 
-use std::{process::Stdio, time::Duration};
+use std::{path::Path, process::Stdio, time::Duration};
 
 use crate::{
     config::{Config, JailerMode},
@@ -317,7 +317,7 @@ impl<'m> Machine<'m> {
     async fn setup_boot_source(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring boot source...");
-        let boot_source = self.config.boot_source();
+        let boot_source = self.config.boot_source()?;
         let json = serde_json::to_string(&boot_source)?;
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path, "/boot-source").into();
         self.send_request(url, json).await?;
@@ -333,7 +333,14 @@ impl<'m> Machine<'m> {
         for drive in &self.config.drives {
             let path = format!("/drives/{}", drive.drive_id());
             let url: hyper::Uri = Uri::new(&self.config.host_socket_path, &path).into();
-            let json = serde_json::to_string(&drive)?;
+            // Send modified drive object, with drive file in chroot location
+            let mut drive_obj = drive.clone();
+            let drive_filename = drive
+                .path_on_host()
+                .file_name()
+                .ok_or(Error::InvalidDrivePath)?;
+            drive_obj.path_on_host = Path::new(&drive_filename).into();
+            let json = serde_json::to_string(&drive_obj)?;
             self.send_request(url, json).await?;
         }
         trace!("{vm_id}: Drives configured successfully.");

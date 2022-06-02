@@ -91,12 +91,22 @@ impl<'c> Config<'c> {
     }
 
     /// Create boot source from `self`.
-    pub fn boot_source(&self) -> BootSource<'_> {
-        BootSource {
-            kernel_image_path: self.kernel_image_path.as_ref(),
-            initrd_path: self.initrd_path.as_ref().map(AsRef::as_ref),
+    pub fn boot_source(&self) -> Result<BootSource<'_>, Error> {
+        let initrd_filename = match &self.initrd_path {
+            Some(initrd_path) => {
+                let initrd_filename = initrd_path.file_name().ok_or(Error::InvalidInitrdPath)?;
+                Some(Path::new(initrd_filename))
+            }
+            None => None,
+        };
+
+        let kernel_image_file = Path::new(KERNEL_IMAGE_FILENAME);
+
+        Ok(BootSource {
+            kernel_image_path: kernel_image_file,
+            initrd_path: initrd_filename,
             boot_args: self.kernel_args.as_ref().map(AsRef::as_ref),
-        }
+        })
     }
 
     /// The socket path.
@@ -340,15 +350,13 @@ impl<'c> Builder<'c> {
             .join("root")
             .into();
 
-        self.0.host_initrd_path = match self.0.initrd_path.as_ref() {
-            Some(initrd_path) => {
-                let initrd_filename = initrd_path
-                    .file_name()
-                    .ok_or(Error::InvalidInitrdPath)?
-                    .to_owned();
-                Some(self.0.jailer_workspace_dir.join(&initrd_filename).into())
-            }
-            None => None,
+        if let Some(initrd_path) = self.0.initrd_path.as_ref() {
+            let initrd_filename = initrd_path
+                .file_name()
+                .ok_or(Error::InvalidInitrdPath)?
+                .to_owned();
+            self.0.host_initrd_path =
+                Some(self.0.jailer_workspace_dir.join(&initrd_filename).into());
         };
 
         self.0.host_kernel_image_path = self
@@ -393,25 +401,48 @@ mod tests {
             .build()
             .unwrap();
 
-        assert_eq!(config.initrd_path.unwrap().as_os_str(), "/tmp/initrd.img");
+        assert_eq!(
+            config.initrd_path.as_ref().unwrap().as_os_str(),
+            "/tmp/initrd.img"
+        );
         assert_eq!(
             config
                 .host_initrd_path
+                .as_ref()
                 .unwrap()
                 .as_os_str()
                 .to_string_lossy(),
             format!("/chroot/firecracker/{}/root/initrd.img", id)
         );
 
-        assert_eq!(config.kernel_image_path.as_os_str(), "/tmp/kernel.path");
         assert_eq!(
-            config.host_kernel_image_path.as_os_str().to_string_lossy(),
+            config.kernel_image_path.as_ref().as_os_str(),
+            "/tmp/kernel.path"
+        );
+        assert_eq!(
+            config
+                .host_kernel_image_path
+                .as_ref()
+                .as_os_str()
+                .to_string_lossy(),
             format!("/chroot/firecracker/{}/root/kernel", id)
         );
-        assert_eq!(config.socket_path.as_os_str(), "/firecracker.socket");
         assert_eq!(
-            config.host_socket_path.as_os_str().to_string_lossy(),
+            config.socket_path.as_ref().as_os_str(),
+            "/firecracker.socket"
+        );
+        assert_eq!(
+            config
+                .host_socket_path
+                .as_ref()
+                .as_os_str()
+                .to_string_lossy(),
             format!("/chroot/firecracker/{}/root/firecracker.socket", id)
         );
+
+        let boot_source = config.boot_source().unwrap();
+        assert_eq!(boot_source.boot_args, None);
+        assert_eq!(boot_source.kernel_image_path.as_os_str(), "kernel");
+        assert_eq!(boot_source.initrd_path, Some(Path::new("initrd.img")));
     }
 }
