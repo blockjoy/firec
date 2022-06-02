@@ -88,21 +88,21 @@ impl<'c> Config<'c> {
     }
 
     /// Create boot source from `self`.
-    pub fn boot_source(&self) -> Result<BootSource<'_>, Error> {
-        let initrd_filename = match &self.initrd_path {
+    pub fn boot_source(&self) -> Result<BootSource, Error> {
+        let relative_kernel_image_path = Path::new("/").join(KERNEL_IMAGE_FILENAME);
+
+        let relative_initrd_path: Result<Option<PathBuf>, Error> = match self.initrd_path.as_ref() {
             Some(initrd_path) => {
                 let initrd_filename = initrd_path.file_name().ok_or(Error::InvalidInitrdPath)?;
-                Some(Path::new(initrd_filename))
+                Ok(Some(Path::new("/").join(initrd_filename)))
             }
-            None => None,
+            None => Ok(None),
         };
 
-        let kernel_image_file = Path::new(KERNEL_IMAGE_FILENAME);
-
         Ok(BootSource {
-            kernel_image_path: kernel_image_file,
-            initrd_path: initrd_filename,
-            boot_args: self.kernel_args.as_ref().map(AsRef::as_ref),
+            kernel_image_path: relative_kernel_image_path,
+            initrd_path: relative_initrd_path?,
+            boot_args: self.kernel_args.as_ref().map(AsRef::as_ref).map(Into::into),
         })
     }
 
@@ -207,13 +207,12 @@ impl<'c> Config<'c> {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BootSource<'b> {
     /// The kernel image path.
-    #[serde(borrow)]
-    pub kernel_image_path: &'b Path,
+    pub kernel_image_path: PathBuf,
     /// The (optional) kernel command line.
     pub boot_args: Option<&'b str>,
     /// The (optional) initrd image path.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub initrd_path: Option<&'b Path>,
+    pub initrd_path: Option<PathBuf>,
 }
 
 /// defines the verbosity of Firecracker logging.
@@ -441,7 +440,7 @@ mod tests {
 
         let boot_source = config.boot_source().unwrap();
         assert_eq!(boot_source.boot_args, None);
-        assert_eq!(boot_source.kernel_image_path.as_os_str(), "kernel");
-        assert_eq!(boot_source.initrd_path, Some(Path::new("initrd.img")));
+        assert_eq!(boot_source.kernel_image_path.as_os_str(), "/kernel");
+        assert_eq!(boot_source.initrd_path.unwrap().as_os_str(), "/initrd.img");
     }
 }
