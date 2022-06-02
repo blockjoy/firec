@@ -1,6 +1,9 @@
 //! VMM configuration.
 
-use std::{borrow::Cow, path::Path};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
@@ -25,7 +28,6 @@ const KERNEL_IMAGE_FILENAME: &str = "kernel";
 #[derive(Debug)]
 pub struct Config<'c> {
     pub(crate) socket_path: Cow<'c, Path>,
-    pub(crate) host_socket_path: Cow<'c, Path>,
     log_path: Option<Cow<'c, Path>>,
     log_fifo: Option<Cow<'c, Path>>,
     log_level: Option<LogLevel>,
@@ -33,9 +35,7 @@ pub struct Config<'c> {
     metrics_fifo: Option<Cow<'c, Path>>,
     pub(crate) jailer_workspace_dir: Cow<'c, Path>,
     pub(crate) kernel_image_path: Cow<'c, Path>,
-    pub(crate) host_kernel_image_path: Cow<'c, Path>,
     pub(crate) initrd_path: Option<Cow<'c, Path>>,
-    pub(crate) host_initrd_path: Option<Cow<'c, Path>>,
     kernel_args: Option<Cow<'c, str>>,
     pub(crate) drives: Vec<Drive<'c>>,
 
@@ -69,7 +69,6 @@ impl<'c> Config<'c> {
     {
         Builder(Self {
             socket_path: Path::new("/run/firecracker.socket").into(),
-            host_socket_path: Path::new("/srv/jailer/firecracker/root/firecracker.socket").into(),
             log_path: None,
             log_fifo: None,
             log_level: None,
@@ -77,9 +76,7 @@ impl<'c> Config<'c> {
             metrics_fifo: None,
             jailer_workspace_dir: Path::new("/srv/jailer/firecracker/root").into(),
             kernel_image_path: kernel_image_path.into(),
-            host_kernel_image_path: Path::new("/srv/jailer/firecracker/root/debian-vmlinux").into(),
             initrd_path: None,
-            host_initrd_path: None,
             kernel_args: None,
             drives: Vec::new(),
             machine_cfg: Machine::builder().build(),
@@ -114,6 +111,13 @@ impl<'c> Config<'c> {
         self.socket_path.as_ref()
     }
 
+    /// The socket path in chroot location.
+    pub fn guest_socket_path(&self) -> PathBuf {
+        let socket_path = self.socket_path.as_ref();
+        let relative_path = socket_path.strip_prefix("/").unwrap_or(socket_path);
+        self.jailer_workspace_dir.join(relative_path)
+    }
+
     /// The log path.
     pub fn log_path(&self) -> Option<&Path> {
         self.log_path.as_ref().map(AsRef::as_ref)
@@ -139,9 +143,28 @@ impl<'c> Config<'c> {
         self.kernel_image_path.as_ref()
     }
 
+    /// The kernel image path in chroot location.
+    pub fn guest_kernel_image_path(&self) -> PathBuf {
+        self.jailer_workspace_dir.join(KERNEL_IMAGE_FILENAME)
+    }
+
     /// The initrd path.
     pub fn initrd_path(&self) -> Option<&Path> {
         self.initrd_path.as_ref().map(AsRef::as_ref)
+    }
+
+    /// The initrd path in chroot location.
+    pub fn guest_initrd_path(&self) -> Result<Option<PathBuf>, Error> {
+        match self.initrd_path.as_ref() {
+            Some(initrd_path) => {
+                let initrd_filename = initrd_path
+                    .file_name()
+                    .ok_or(Error::InvalidInitrdPath)?
+                    .to_owned();
+                Ok(Some(self.jailer_workspace_dir.join(&initrd_filename)))
+            }
+            None => Ok(None),
+        }
     }
 
     /// The kernel arguments.
@@ -350,25 +373,6 @@ impl<'c> Builder<'c> {
             .join("root")
             .into();
 
-        if let Some(initrd_path) = self.0.initrd_path.as_ref() {
-            let initrd_filename = initrd_path
-                .file_name()
-                .ok_or(Error::InvalidInitrdPath)?
-                .to_owned();
-            self.0.host_initrd_path =
-                Some(self.0.jailer_workspace_dir.join(&initrd_filename).into());
-        };
-
-        self.0.host_kernel_image_path = self
-            .0
-            .jailer_workspace_dir
-            .join(KERNEL_IMAGE_FILENAME)
-            .into();
-
-        let socket_path = self.0.socket_path.as_ref();
-        let relative_path = socket_path.strip_prefix("/").unwrap_or(socket_path);
-        self.0.host_socket_path = self.0.jailer_workspace_dir.join(relative_path).into();
-
         Ok(self.0)
     }
 }
@@ -407,8 +411,8 @@ mod tests {
         );
         assert_eq!(
             config
-                .host_initrd_path
-                .as_ref()
+                .guest_initrd_path()
+                .unwrap()
                 .unwrap()
                 .as_os_str()
                 .to_string_lossy(),
@@ -421,8 +425,7 @@ mod tests {
         );
         assert_eq!(
             config
-                .host_kernel_image_path
-                .as_ref()
+                .guest_kernel_image_path()
                 .as_os_str()
                 .to_string_lossy(),
             format!("/chroot/firecracker/{}/root/kernel", id)
@@ -432,11 +435,7 @@ mod tests {
             "/firecracker.socket"
         );
         assert_eq!(
-            config
-                .host_socket_path
-                .as_ref()
-                .as_os_str()
-                .to_string_lossy(),
+            config.guest_socket_path().as_os_str().to_string_lossy(),
             format!("/chroot/firecracker/{}/root/firecracker.socket", id)
         );
 
