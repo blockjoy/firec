@@ -209,9 +209,11 @@ impl<'m> Machine<'m> {
         Ok(())
     }
 
-    /// Stop the machine.
+    /// Forcefully shutdown the machine.
+    ///
+    /// This will be done by killing VM process.
     #[instrument(skip_all)]
-    pub async fn stop(&self) -> Result<(), Error> {
+    pub async fn force_shutdown(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
 

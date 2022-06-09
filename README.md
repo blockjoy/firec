@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Let the machine run for a bit before we KILL IT :)
     sleep(Duration::from_secs(15)).await;
 
-    machine.stop().await?;
+    machine.force_shutdown().await?;
 
     Ok(())
 }
