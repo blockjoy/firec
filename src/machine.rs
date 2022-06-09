@@ -24,8 +24,20 @@ use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 #[derive(Debug)]
 pub struct Machine<'m> {
     config: Config<'m>,
-    pid: Option<i32>,
+    state: MachineState,
     client: Client<UnixConnector>,
+}
+
+/// VM state
+#[derive(Debug, Clone, Copy)]
+pub enum MachineState {
+    /// Machine is not started or already shut down
+    SHUTOFF,
+    /// Machine is running
+    RUNNING {
+        /// Pid of a running jailer/firecraker process
+        pid: i32,
+    },
 }
 
 impl<'m> Machine<'m> {
@@ -98,7 +110,7 @@ impl<'m> Machine<'m> {
 
         let machine = Self {
             config,
-            pid: None,
+            state: MachineState::SHUTOFF,
             client,
         };
 
@@ -118,7 +130,7 @@ impl<'m> Machine<'m> {
 
         Self {
             config,
-            pid: Some(pid),
+            state: MachineState::RUNNING { pid },
             client,
         }
     }
@@ -182,13 +194,13 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Running command: {:?}", cmd);
         let mut child = cmd.spawn()?;
         let pid = match child.id() {
-            Some(id) => Some(id.try_into()?),
+            Some(id) => id.try_into()?,
             None => {
                 let exit_status = child.wait().await?;
                 return Err(Error::ProcessExitedImmediatelly { exit_status });
             }
         };
-        self.pid = pid;
+        self.state = MachineState::RUNNING { pid };
 
         // Give some time to the jailer to start up and create the socket.
         // FIXME: We should monitor the socket instead?
@@ -218,7 +230,12 @@ impl<'m> Machine<'m> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
 
-        let pid = self.pid.ok_or(Error::ProcessNotStarted)?;
+        let pid = match self.state {
+            MachineState::SHUTOFF => {
+                return Err(Error::ProcessNotStarted);
+            }
+            MachineState::RUNNING { pid } => pid,
+        };
         let killed = task::spawn_blocking(move || {
             let mut sys = System::new();
             if sys.refresh_process_specifics(Pid::from(pid), ProcessRefreshKind::new()) {
@@ -236,7 +253,7 @@ impl<'m> Machine<'m> {
             return Err(Error::ProcessNotKilled(pid));
         }
 
-        self.pid = None;
+        self.state = MachineState::SHUTOFF;
         trace!("{vm_id}: VM sent KILL signal successfully.");
 
         Ok(())
@@ -258,11 +275,11 @@ impl<'m> Machine<'m> {
         &self.config
     }
 
-    /// Get the PID of the jailer/firecracker process
+    /// Get the machine state
     ///
-    /// Returns `None` if machine is not running.
-    pub fn pid(&self) -> Option<i32> {
-        self.pid
+    /// Returns SHUTOFF is machine is not running
+    pub fn state(&self) -> MachineState {
+        self.state
     }
 
     #[instrument(skip_all)]
