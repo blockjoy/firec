@@ -24,7 +24,7 @@ use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 #[derive(Debug)]
 pub struct Machine<'m> {
     config: Config<'m>,
-    pid: i32,
+    pid: Option<i32>,
     client: Client<UnixConnector>,
 }
 
@@ -33,12 +33,10 @@ impl<'m> Machine<'m> {
     ///
     /// The machine is not started yet.
     #[instrument(skip_all)]
-    pub async fn create(mut config: Config<'m>) -> Result<Machine<'m>, Error> {
+    pub async fn create(config: Config<'m>) -> Result<Machine<'m>, Error> {
         let vm_id = *config.vm_id();
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
-
-        let id_str = vm_id.to_string();
 
         let jailer_workspace_dir = config.jailer_workspace_dir.as_ref();
         info!(
@@ -94,8 +92,45 @@ impl<'m> Machine<'m> {
 
         // TODO: Handle fifos. See https://github.com/firecracker-microvm/firecracker-go-sdk/blob/f0a967ef386caec37f6533dce5797038edf8c226/jailer.go#L435
 
+        // `request` doesn't provide API to connect to unix sockets so we we use the low-level
+        // approach using hyper: https://github.com/seanmonstar/reqwest/issues/39
+        let client = Client::unix();
+
+        let machine = Self {
+            config,
+            pid: None,
+            client,
+        };
+
+        Ok(machine)
+    }
+
+    /// Connect to already running machine.
+    ///
+    /// The machine should be created first via call to `create`, and then started via `start`
+    #[instrument(skip_all)]
+    pub async fn connect(config: Config<'m>, pid: i32) -> Machine<'m> {
+        let vm_id = *config.vm_id();
+        info!("Connecting to machine with VM ID `{vm_id}`");
+        trace!("{vm_id}: Configuration: {:?}, pid: {}", config, pid);
+
+        let client = Client::unix();
+
+        Self {
+            config,
+            pid: Some(pid),
+            client,
+        }
+    }
+
+    /// Start the machine.
+    #[instrument(skip_all)]
+    pub async fn start(&mut self) -> Result<(), Error> {
+        let vm_id = self.config.vm_id().to_string();
+        info!("Starting machine with VM ID `{vm_id}`");
+
         // FIXME: Assuming jailer for now.
-        let jailer = config.jailer_cfg.as_mut().expect("no jailer config");
+        let jailer = self.config.jailer_cfg.as_mut().expect("no jailer config");
         let (daemonize_arg, stdin, stdout, stderr) = match &mut jailer.mode {
             JailerMode::Daemon => (
                 Some("--daemonize"),
@@ -118,7 +153,7 @@ impl<'m> Machine<'m> {
         let cmd = cmd
             .args(&[
                 "--id",
-                &id_str,
+                &vm_id,
                 "--exec-file",
                 jailer
                     .exec_file()
@@ -136,7 +171,7 @@ impl<'m> Machine<'m> {
                 // `firecracker` binary args.
                 "--",
                 "--api-sock",
-                config
+                self.config
                     .socket_path
                     .to_str()
                     .ok_or(Error::InvalidSocketPath)?,
@@ -147,63 +182,29 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Running command: {:?}", cmd);
         let mut child = cmd.spawn()?;
         let pid = match child.id() {
-            Some(id) => id.try_into()?,
+            Some(id) => Some(id.try_into()?),
             None => {
                 let exit_status = child.wait().await?;
                 return Err(Error::ProcessExitedImmediatelly { exit_status });
             }
         };
+        self.pid = pid;
 
         // Give some time to the jailer to start up and create the socket.
         // FIXME: We should monitor the socket instead?
         info!("{vm_id}: Waiting for the jailer to start up...");
         sleep(Duration::from_secs(10)).await;
 
-        // `request` doesn't provide API to connect to unix sockets so we we use the low-level
-        // approach using hyper: https://github.com/seanmonstar/reqwest/issues/39
-        let client = Client::unix();
-
-        let machine = Self {
-            config,
-            pid,
-            client,
-        };
-
         info!("{vm_id}: Setting the VM...");
-        machine.setup_resources().await?;
-        machine.setup_boot_source().await?;
-        machine.setup_drives().await?;
-        machine.setup_network().await?;
+        self.setup_resources().await?;
+        self.setup_boot_source().await?;
+        self.setup_drives().await?;
+        self.setup_network().await?;
         info!("{vm_id}: VM successfully setup.");
 
-        Ok(machine)
-    }
-
-    /// Connect to already running machine.
-    ///
-    /// The machine should be created first via call to `create`.
-    #[instrument(skip_all)]
-    pub async fn connect(config: Config<'m>, pid: i32) -> Machine<'m> {
-        let vm_id = *config.vm_id();
-        info!("Connecting to machine with VM ID `{vm_id}`");
-        trace!("{vm_id}: Configuration: {:?}, pid: {}", config, pid);
-
-        let client = Client::unix();
-
-        Self {
-            config,
-            pid,
-            client,
-        }
-    }
-
-    /// Start the machine.
-    #[instrument(skip_all)]
-    pub async fn start(&self) -> Result<(), Error> {
-        let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Starting the VM...");
-        // Start the machine.
+        trace!("{vm_id}: Booting the VM instance...");
         self.send_action(Action::InstanceStart).await?;
+
         trace!("{vm_id}: VM started successfully.");
 
         Ok(())
@@ -213,11 +214,11 @@ impl<'m> Machine<'m> {
     ///
     /// This will be done by killing VM process.
     #[instrument(skip_all)]
-    pub async fn force_shutdown(&self) -> Result<(), Error> {
+    pub async fn force_shutdown(&mut self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Killing VM...");
 
-        let pid = self.pid;
+        let pid = self.pid.ok_or(Error::ProcessNotStarted)?;
         let killed = task::spawn_blocking(move || {
             let mut sys = System::new();
             if sys.refresh_process_specifics(Pid::from(pid), ProcessRefreshKind::new()) {
@@ -235,6 +236,7 @@ impl<'m> Machine<'m> {
             return Err(Error::ProcessNotKilled(pid));
         }
 
+        self.pid = None;
         trace!("{vm_id}: VM sent KILL signal successfully.");
 
         Ok(())
@@ -257,7 +259,9 @@ impl<'m> Machine<'m> {
     }
 
     /// Get the PID of the jailer/firecracker process
-    pub fn pid(&self) -> i32 {
+    ///
+    /// Returns `None` if machine is not running.
+    pub fn pid(&self) -> Option<i32> {
         self.pid
     }
 

@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_network_interface(iface)
         .socket_path(Path::new("/tmp/firecracker.socket"))
         .build()?;
-    let machine = Machine::create(config).await?;
+    let mut machine = Machine::create(config).await?;
 
     machine.start().await?;
 

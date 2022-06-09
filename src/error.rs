@@ -61,6 +61,10 @@ pub enum Error {
         body: Option<String>,
     },
 
+    /// Process not started
+    #[error("Process not started")]
+    ProcessNotStarted,
+
     /// Process not running
     #[error("Process not running for pid: {0}")]
     ProcessNotRunning(i32),
