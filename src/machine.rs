@@ -10,7 +10,7 @@ use serde::Serialize;
 use serde_json::json;
 use sysinfo::{Pid, ProcessExt, ProcessRefreshKind, System, SystemExt};
 use tokio::{
-    fs::{copy, DirBuilder},
+    fs::{self, copy, DirBuilder},
     process::Command,
     task,
     time::sleep,
@@ -266,6 +266,40 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
         self.send_action(Action::SendCtrlAltDel).await?;
         trace!("{vm_id}: CTRL+ALT+DEL sent to VM successfully.");
+
+        Ok(())
+    }
+
+    /// Delete the machine.
+    ///
+    /// Deletes the machine, cleaning up all associated resources.
+    ///
+    /// If machine is running, it is shut down before resources are deleted.
+    #[instrument(skip_all)]
+    pub async fn delete(mut self) -> Result<(), Error> {
+        let vm_id = self.config.vm_id().to_string();
+        let jailer_workspace_dir = self.config.jailer_workspace_dir.to_owned();
+
+        if let MachineState::RUNNING { .. } = self.state {
+            if let Err(err) = self.shutdown().await {
+                trace!("{vm_id}: Shutdown error: {err}");
+            } else {
+                info!("{vm_id}: Waiting for the VM process to shut down...");
+                sleep(Duration::from_secs(10)).await;
+            }
+
+            if let Err(err) = self.force_shutdown().await {
+                trace!("{vm_id}: Forced shutdown error: {err}");
+            }
+        }
+
+        trace!("{vm_id}: Deleting VM resources...");
+        info!(
+            "{vm_id}: Deleting VM workspace directory at `{}`",
+            jailer_workspace_dir.display()
+        );
+        fs::remove_dir_all(jailer_workspace_dir).await?;
+        trace!("{vm_id}: VM deleted successfully.");
 
         Ok(())
     }
