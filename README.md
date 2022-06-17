@@ -16,10 +16,6 @@ use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root_drive = Drive::builder("root", Path::new("debian.ext4"))
-        .is_root_device(true)
-        .build();
-
     let kernel_args = Some("console=ttyS0 reboot=k panic=1 pci=off random.trust_cpu=on");
 
     let iface = Interface::new("eth0", "tap0");
@@ -36,7 +32,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build()
         .kernel_args(kernel_args)
         .machine_cfg(machine_cfg)
-        .add_drive(root_drive)
+        .add_drive("root", Path::new("debian.ext4"))
+            .is_root_device(true)
+            .build()
         .add_network_interface(iface)
         .socket_path(Path::new("/tmp/firecracker.socket"))
         .build()?;

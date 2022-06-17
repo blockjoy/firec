@@ -315,12 +315,12 @@ impl<'c> Builder<'c> {
     }
 
     /// Add a drive.
-    pub fn add_drive<D>(mut self, drive: D) -> Self
+    pub fn add_drive<I, P>(self, drive_id: I, src_path: P) -> DriveBuilder<'c>
     where
-        D: Into<Drive<'c>>,
+        I: Into<Cow<'c, str>>,
+        P: Into<Cow<'c, Path>>,
     {
-        self.0.drives.push(drive.into());
-        self
+        DriveBuilder::new(self, drive_id, src_path)
     }
 
     /// Set the Firecracker microVM process configuration.
@@ -394,10 +394,6 @@ mod tests {
     fn config_host_values() {
         let id = Uuid::new_v4();
 
-        let root_drive = Drive::builder("root", Path::new("/tmp/debian.ext4"))
-            .is_root_device(true)
-            .build();
-
         let config = Config::builder(Path::new("/tmp/kernel.path"))
             .vm_id(id)
             .jailer_cfg()
@@ -406,7 +402,9 @@ mod tests {
             .mode(JailerMode::Daemon)
             .build()
             .initrd_path(Some(Path::new("/tmp/initrd.img")))
-            .add_drive(root_drive)
+            .add_drive("root", Path::new("/tmp/debian.ext4"))
+            .is_root_device(true)
+            .build()
             .socket_path(Path::new("/firecracker.socket"))
             .build()
             .unwrap();

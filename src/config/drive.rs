@@ -2,6 +2,8 @@ use std::{borrow::Cow, path::Path};
 
 use serde::{Deserialize, Serialize};
 
+use super::Builder;
+
 /// Drive configuration.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Drive<'d> {
@@ -22,21 +24,6 @@ pub struct Drive<'d> {
 }
 
 impl<'d> Drive<'d> {
-    /// Create a new `DriveBuilder` instance.
-    pub fn builder<I, P>(drive_id: I, src_path: P) -> DriveBuilder<'d>
-    where
-        I: Into<Cow<'d, str>>,
-        P: Into<Cow<'d, Path>>,
-    {
-        DriveBuilder(Drive {
-            drive_id: drive_id.into(),
-            is_read_only: false,
-            is_root_device: false,
-            part_uuid: None,
-            src_path: src_path.into(),
-        })
-    }
-
     /// The drive ID.
     pub fn drive_id(&self) -> &str {
         &self.drive_id
@@ -68,18 +55,38 @@ impl<'d> Drive<'d> {
 
 /// Builder for `Drive`.
 #[derive(Debug)]
-pub struct DriveBuilder<'d>(Drive<'d>);
+pub struct DriveBuilder<'d> {
+    config_builder: Builder<'d>,
+    drive: Drive<'d>,
+}
 
 impl<'d> DriveBuilder<'d> {
+    pub(crate) fn new<I, P>(config_builder: Builder<'d>, drive_id: I, src_path: P) -> Self
+    where
+        I: Into<Cow<'d, str>>,
+        P: Into<Cow<'d, Path>>,
+    {
+        Self {
+            config_builder,
+            drive: Drive {
+                drive_id: drive_id.into(),
+                is_read_only: false,
+                is_root_device: false,
+                part_uuid: None,
+                src_path: src_path.into(),
+            },
+        }
+    }
+
     /// If to-be-created `Drive` will be read-only.
     pub fn is_read_only(mut self, is_read_only: bool) -> Self {
-        self.0.is_read_only = is_read_only;
+        self.drive.is_read_only = is_read_only;
         self
     }
 
     /// If to-be-created `Drive` will be the root device.
     pub fn is_root_device(mut self, is_root_device: bool) -> Self {
-        self.0.is_root_device = is_root_device;
+        self.drive.is_root_device = is_root_device;
         self
     }
 
@@ -90,12 +97,16 @@ impl<'d> DriveBuilder<'d> {
     where
         U: Into<Cow<'d, str>>,
     {
-        self.0.part_uuid = part_uuid.map(Into::into);
+        self.drive.part_uuid = part_uuid.map(Into::into);
         self
     }
 
     /// Build the `Drive`.
-    pub fn build(self) -> Drive<'d> {
-        self.0
+    ///
+    /// Returns the main configuration builder with the new drive added to it.
+    pub fn build(mut self) -> Builder<'d> {
+        self.config_builder.0.drives.push(self.drive);
+
+        self.config_builder
     }
 }
