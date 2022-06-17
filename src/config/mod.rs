@@ -112,7 +112,7 @@ impl<'c> Config<'c> {
     }
 
     /// The socket path in chroot location.
-    pub fn guest_socket_path(&self) -> PathBuf {
+    pub fn host_socket_path(&self) -> PathBuf {
         let socket_path = self.socket_path.as_ref();
         let relative_path = socket_path.strip_prefix("/").unwrap_or(socket_path);
         self.jailer_workspace_dir.join(relative_path)
