@@ -76,7 +76,7 @@ impl<'m> Machine<'m> {
                 src_initrd_path.display(),
                 initrd_path.display()
             );
-            copy(src_initrd_path.as_os_str(), initrd_path.as_os_str()).await?;
+            copy(src_initrd_path, initrd_path).await?;
         }
 
         for drive in &config.drives {
@@ -158,7 +158,7 @@ impl<'m> Machine<'m> {
             ),
         };
 
-        let mut cmd = &mut Command::new(jailer.jailer_binary().as_os_str());
+        let mut cmd = &mut Command::new(jailer.jailer_binary());
         if let Some(daemonize_arg) = daemonize_arg {
             cmd = cmd.arg(daemonize_arg);
         }
