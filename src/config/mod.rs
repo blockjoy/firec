@@ -329,10 +329,9 @@ impl<'c> Builder<'c> {
         self
     }
 
-    /// Set the jailer process configuration.
-    pub fn jailer_cfg(mut self, jailer_cfg: Option<Jailer<'c>>) -> Self {
-        self.0.jailer_cfg = jailer_cfg;
-        self
+    /// Create the jailer process configuration builder.
+    pub fn jailer_cfg(self) -> JailerBuilder<'c> {
+        JailerBuilder::new(self)
     }
 
     /// Set a unique identifier for this VM.
@@ -395,19 +394,17 @@ mod tests {
     fn config_host_values() {
         let id = Uuid::new_v4();
 
-        let jailer = Jailer::builder()
-            .chroot_base_dir(Path::new("/chroot"))
-            .exec_file(Path::new("/usr/bin/firecracker"))
-            .mode(JailerMode::Daemon)
-            .build();
-
         let root_drive = Drive::builder("root", Path::new("/tmp/debian.ext4"))
             .is_root_device(true)
             .build();
 
         let config = Config::builder(Path::new("/tmp/kernel.path"))
             .vm_id(id)
-            .jailer_cfg(Some(jailer))
+            .jailer_cfg()
+            .chroot_base_dir(Path::new("/chroot"))
+            .exec_file(Path::new("/usr/bin/firecracker"))
+            .mode(JailerMode::Daemon)
+            .build()
             .initrd_path(Some(Path::new("/tmp/initrd.img")))
             .add_drive(root_drive)
             .socket_path(Path::new("/firecracker.socket"))
