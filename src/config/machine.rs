@@ -21,7 +21,7 @@ impl<'m> Machine<'m> {
         MachineBuilder(Machine {
             smt: false,
             track_dirty_pages: false,
-            mem_size_mib: 0,
+            mem_size_mib: 1024,
             vcpu_count: 1,
             cpu_template: None,
         })
