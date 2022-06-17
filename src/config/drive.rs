@@ -10,7 +10,8 @@ pub struct Drive<'d> {
     is_root_device: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     part_uuid: Option<Cow<'d, str>>,
-    pub(crate) path_on_host: Cow<'d, Path>,
+    #[serde(rename = "path_on_host")]
+    pub(crate) src_path: Cow<'d, Path>,
     /* TODO:
 
     /// rate limiter
@@ -22,7 +23,7 @@ pub struct Drive<'d> {
 
 impl<'d> Drive<'d> {
     /// Create a new `DriveBuilder` instance.
-    pub fn builder<I, P>(drive_id: I, path_on_host: P) -> DriveBuilder<'d>
+    pub fn builder<I, P>(drive_id: I, src_path: P) -> DriveBuilder<'d>
     where
         I: Into<Cow<'d, str>>,
         P: Into<Cow<'d, Path>>,
@@ -32,7 +33,7 @@ impl<'d> Drive<'d> {
             is_read_only: false,
             is_root_device: false,
             part_uuid: None,
-            path_on_host: path_on_host.into(),
+            src_path: src_path.into(),
         })
     }
 
@@ -56,9 +57,12 @@ impl<'d> Drive<'d> {
         self.part_uuid.as_deref()
     }
 
-    /// Host level path for the guest drive.
-    pub fn path_on_host(&self) -> &Path {
-        &self.path_on_host
+    /// The source path for the guest drive.
+    ///
+    /// This is the path given by the application. The drive is transfered to the chroot directory
+    /// by [`crate::Machine::create`].
+    pub fn src_path(&self) -> &Path {
+        &self.src_path
     }
 }
 

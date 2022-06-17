@@ -34,8 +34,8 @@ pub struct Config<'c> {
     metrics_path: Option<Cow<'c, Path>>,
     metrics_fifo: Option<Cow<'c, Path>>,
     pub(crate) jailer_workspace_dir: Cow<'c, Path>,
-    pub(crate) kernel_image_path: Cow<'c, Path>,
-    pub(crate) initrd_path: Option<Cow<'c, Path>>,
+    pub(crate) src_kernel_image_path: Cow<'c, Path>,
+    pub(crate) src_initrd_path: Option<Cow<'c, Path>>,
     kernel_args: Option<Cow<'c, str>>,
     pub(crate) drives: Vec<Drive<'c>>,
 
@@ -62,8 +62,8 @@ impl<'c> Config<'c> {
     ///
     /// # Arguments
     ///
-    /// `kernel_image_path: The path to the kernel image, that must be an uncompressed ELF image.
-    pub fn builder<P>(kernel_image_path: P) -> Builder<'c>
+    /// `src_kernel_image_path`: The path to the kernel image, that must be an uncompressed ELF image.
+    pub fn builder<P>(src_kernel_image_path: P) -> Builder<'c>
     where
         P: Into<Cow<'c, Path>>,
     {
@@ -75,8 +75,8 @@ impl<'c> Config<'c> {
             metrics_path: None,
             metrics_fifo: None,
             jailer_workspace_dir: Path::new("/srv/jailer/firecracker/root").into(),
-            kernel_image_path: kernel_image_path.into(),
-            initrd_path: None,
+            src_kernel_image_path: src_kernel_image_path.into(),
+            src_initrd_path: None,
             kernel_args: None,
             drives: Vec::new(),
             machine_cfg: Machine::builder().build(),
@@ -91,13 +91,15 @@ impl<'c> Config<'c> {
     pub fn boot_source(&self) -> Result<BootSource, Error> {
         let relative_kernel_image_path = Path::new("/").join(KERNEL_IMAGE_FILENAME);
 
-        let relative_initrd_path: Result<Option<PathBuf>, Error> = match self.initrd_path.as_ref() {
-            Some(initrd_path) => {
-                let initrd_filename = initrd_path.file_name().ok_or(Error::InvalidInitrdPath)?;
-                Ok(Some(Path::new("/").join(initrd_filename)))
-            }
-            None => Ok(None),
-        };
+        let relative_initrd_path: Result<Option<PathBuf>, Error> =
+            match self.src_initrd_path.as_ref() {
+                Some(initrd_path) => {
+                    let initrd_filename =
+                        initrd_path.file_name().ok_or(Error::InvalidInitrdPath)?;
+                    Ok(Some(Path::new("/").join(initrd_filename)))
+                }
+                None => Ok(None),
+            };
 
         Ok(BootSource {
             kernel_image_path: relative_kernel_image_path,
@@ -138,24 +140,32 @@ impl<'c> Config<'c> {
         self.metrics_fifo.as_ref().map(AsRef::as_ref)
     }
 
-    /// The kernel image path.
-    pub fn kernel_image_path(&self) -> &Path {
-        self.kernel_image_path.as_ref()
+    /// The source kernel image path.
+    ///
+    /// This is the path given by the application. It's transfered to the chroot directory by
+    /// [`crate::Machine::create`]. The path inside the chroot can be queried using
+    /// [`Config::kernel_image_path`].
+    pub fn src_kernel_image_path(&self) -> &Path {
+        self.src_kernel_image_path.as_ref()
     }
 
     /// The kernel image path in chroot location.
-    pub fn guest_kernel_image_path(&self) -> PathBuf {
+    pub fn kernel_image_path(&self) -> PathBuf {
         self.jailer_workspace_dir.join(KERNEL_IMAGE_FILENAME)
     }
 
-    /// The initrd path.
-    pub fn initrd_path(&self) -> Option<&Path> {
-        self.initrd_path.as_ref().map(AsRef::as_ref)
+    /// The source initrd path.
+    ///
+    /// This is the path given by the application. It's transfered to the chroot directory by
+    /// [`crate::Machine::create`]. The path inside the chroot can be queried using
+    /// [`Config::initrd_image_path`].
+    pub fn src_initrd_path(&self) -> Option<&Path> {
+        self.src_initrd_path.as_ref().map(AsRef::as_ref)
     }
 
     /// The initrd path in chroot location.
-    pub fn guest_initrd_path(&self) -> Result<Option<PathBuf>, Error> {
-        match self.initrd_path.as_ref() {
+    pub fn initrd_path(&self) -> Result<Option<PathBuf>, Error> {
+        match self.src_initrd_path.as_ref() {
             Some(initrd_path) => {
                 let initrd_filename = initrd_path
                     .file_name()
@@ -291,7 +301,7 @@ impl<'c> Builder<'c> {
     where
         P: Into<Cow<'c, Path>>,
     {
-        self.0.initrd_path = initrd_path.map(Into::into);
+        self.0.src_initrd_path = initrd_path.map(Into::into);
         self
     }
 
@@ -405,12 +415,12 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            config.initrd_path.as_ref().unwrap().as_os_str(),
+            config.src_initrd_path.as_ref().unwrap().as_os_str(),
             "/tmp/initrd.img"
         );
         assert_eq!(
             config
-                .guest_initrd_path()
+                .initrd_path()
                 .unwrap()
                 .unwrap()
                 .as_os_str()
@@ -419,14 +429,11 @@ mod tests {
         );
 
         assert_eq!(
-            config.kernel_image_path.as_ref().as_os_str(),
+            config.src_kernel_image_path.as_ref().as_os_str(),
             "/tmp/kernel.path"
         );
         assert_eq!(
-            config
-                .guest_kernel_image_path()
-                .as_os_str()
-                .to_string_lossy(),
+            config.kernel_image_path().as_os_str().to_string_lossy(),
             format!("/chroot/firecracker/{}/root/kernel", id)
         );
         assert_eq!(
@@ -434,7 +441,7 @@ mod tests {
             "/firecracker.socket"
         );
         assert_eq!(
-            config.guest_socket_path().as_os_str().to_string_lossy(),
+            config.host_socket_path().as_os_str().to_string_lossy(),
             format!("/chroot/firecracker/{}/root/firecracker.socket", id)
         );
 

@@ -60,38 +60,38 @@ impl<'m> Machine<'m> {
             .create(jailer_workspace_dir)
             .await?;
 
-        let dest = config.guest_kernel_image_path();
+        let dest = config.kernel_image_path();
         trace!(
             "{vm_id}: Copying kernel image from `{}` to `{}`",
-            config.kernel_image_path.display(),
+            config.src_kernel_image_path.display(),
             dest.display()
         );
-        copy(config.kernel_image_path(), dest).await?;
+        copy(config.src_kernel_image_path(), dest).await?;
 
-        if let (Some(initrd_path), Some(guest_initrd_path)) =
-            (config.initrd_path(), config.guest_initrd_path()?)
+        if let (Some(src_initrd_path), Some(initrd_path)) =
+            (config.src_initrd_path(), config.initrd_path()?)
         {
             trace!(
                 "{vm_id}: Copying initrd from `{}` to `{}`",
-                initrd_path.display(),
-                guest_initrd_path.display()
+                src_initrd_path.display(),
+                initrd_path.display()
             );
-            copy(initrd_path.as_os_str(), guest_initrd_path.as_os_str()).await?;
+            copy(src_initrd_path.as_os_str(), initrd_path.as_os_str()).await?;
         }
 
         for drive in &config.drives {
             let drive_filename = drive
-                .path_on_host()
+                .src_path()
                 .file_name()
                 .ok_or(Error::InvalidDrivePath)?;
             let dest = jailer_workspace_dir.join(drive_filename);
             trace!(
                 "{vm_id}: Copying drive `{}` from `{}` to `{}`",
                 drive.drive_id(),
-                drive.path_on_host().display(),
+                drive.src_path().display(),
                 dest.display()
             );
-            copy(&drive.path_on_host(), dest).await?;
+            copy(&drive.src_path(), dest).await?;
         }
 
         if let Some(socket_dir) = config.host_socket_path().parent() {
@@ -392,10 +392,10 @@ impl<'m> Machine<'m> {
             // Send modified drive object, with drive file in chroot location
             let mut drive_obj = drive.clone();
             let drive_filename = drive
-                .path_on_host()
+                .src_path()
                 .file_name()
                 .ok_or(Error::InvalidDrivePath)?;
-            drive_obj.path_on_host = Path::new(&drive_filename).into();
+            drive_obj.src_path = Path::new(&drive_filename).into();
             let json = serde_json::to_string(&drive_obj)?;
             self.send_request(url, json).await?;
         }
