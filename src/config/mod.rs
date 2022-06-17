@@ -79,7 +79,7 @@ impl<'c> Config<'c> {
             src_initrd_path: None,
             kernel_args: None,
             drives: Vec::new(),
-            machine_cfg: Machine::builder().build(),
+            machine_cfg: Machine::default(),
             jailer_cfg: None,
             vm_id: Uuid::new_v4(),
             net_ns: None,
@@ -323,10 +323,9 @@ impl<'c> Builder<'c> {
         DriveBuilder::new(self, drive_id, src_path)
     }
 
-    /// Set the Firecracker microVM process configuration.
-    pub fn machine_cfg(mut self, machine_cfg: Machine<'c>) -> Self {
-        self.0.machine_cfg = machine_cfg;
-        self
+    /// Set the Firecracker microVM process configuration builder.
+    pub fn machine_cfg(self) -> MachineBuilder<'c> {
+        MachineBuilder::new(self)
     }
 
     /// Create the jailer process configuration builder.

@@ -20,18 +20,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let iface = Interface::new("eth0", "tap0");
 
-    let machine_cfg = MachineCfg::builder()
-        .vcpu_count(2)
-        .mem_size_mib(1024)
-        .build();
-
     let config = Config::builder(Path::new("debian-vmlinux"))
         .jailer_cfg()
             .chroot_base_dir(Path::new("/srv"))
             .exec_file(Path::new("/usr/bin/firecracker"))
             .build()
         .kernel_args(kernel_args)
-        .machine_cfg(machine_cfg)
+        .machine_cfg()
+            .vcpu_count(2)
+            .mem_size_mib(1024)
+            .build()
         .add_drive("root", Path::new("debian.ext4"))
             .is_root_device(true)
             .build()

@@ -3,6 +3,8 @@ use std::borrow::Cow;
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
+use super::Builder;
+
 /// Machine configuration.
 #[derive(Derivative, Debug, Serialize, Deserialize)]
 pub struct Machine<'m> {
@@ -16,17 +18,6 @@ pub struct Machine<'m> {
 }
 
 impl<'m> Machine<'m> {
-    /// Create a new `MachineBuilder` instance.
-    pub fn builder() -> MachineBuilder<'m> {
-        MachineBuilder(Machine {
-            smt: false,
-            track_dirty_pages: false,
-            mem_size_mib: 1024,
-            vcpu_count: 1,
-            cpu_template: None,
-        })
-    }
-
     /// If simultaneous multithreading is enabled.
     pub fn smt(&self) -> bool {
         self.smt
@@ -53,16 +44,39 @@ impl<'m> Machine<'m> {
     }
 }
 
+impl Default for Machine<'_> {
+    fn default() -> Self {
+        Machine {
+            smt: false,
+            track_dirty_pages: false,
+            mem_size_mib: 1024,
+            vcpu_count: 1,
+            cpu_template: None,
+        }
+    }
+}
+
 /// Builder for `Machine`.
 #[derive(Debug)]
-pub struct MachineBuilder<'m>(Machine<'m>);
+pub struct MachineBuilder<'m> {
+    config_builder: Builder<'m>,
+    machine: Machine<'m>,
+}
 
 impl<'m> MachineBuilder<'m> {
+    /// Create a new `MachineBuilder` instance.
+    pub(crate) fn new(config_builder: Builder<'m>) -> Self {
+        Self {
+            config_builder,
+            machine: Machine::default(),
+        }
+    }
+
     /// Flag for enabling/disabling simultaneous multithreading.
     ///
     /// Can be enabled only on x86.
     pub fn smt(mut self, smt: bool) -> Self {
-        self.0.smt = smt;
+        self.machine.smt = smt;
         self
     }
 
@@ -71,13 +85,13 @@ impl<'m> MachineBuilder<'m> {
     /// only the memory dirtied since a previous snapshot. Full snapshots each contain a full copy
     /// of the guest memory.
     pub fn track_dirty_pages(mut self, track_dirty_pages: bool) -> Self {
-        self.0.track_dirty_pages = track_dirty_pages;
+        self.machine.track_dirty_pages = track_dirty_pages;
         self
     }
 
     /// Memory size of VM.
     pub fn mem_size_mib(mut self, mem_size_mib: i64) -> Self {
-        self.0.mem_size_mib = mem_size_mib;
+        self.machine.mem_size_mib = mem_size_mib;
         self
     }
 
@@ -86,18 +100,19 @@ impl<'m> MachineBuilder<'m> {
     /// Maximum: 32
     /// Minimum: 1
     pub fn vcpu_count(mut self, vcpu_count: usize) -> Self {
-        self.0.vcpu_count = vcpu_count;
+        self.machine.vcpu_count = vcpu_count;
         self
     }
 
     /// cpu template.
     pub fn cpu_template(mut self, cpu_template: Cow<'m, str>) -> Self {
-        self.0.cpu_template = Some(cpu_template);
+        self.machine.cpu_template = Some(cpu_template);
         self
     }
 
     /// Build the `Machine` instance.
-    pub fn build(self) -> Machine<'m> {
-        self.0
+    pub fn build(mut self) -> Builder<'m> {
+        self.config_builder.0.machine_cfg = self.machine;
+        self.config_builder
     }
 }
