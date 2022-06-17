@@ -88,7 +88,7 @@ impl<'c> Config<'c> {
     }
 
     /// Create boot source from `self`.
-    pub fn boot_source(&self) -> Result<BootSource, Error> {
+    pub(crate) fn boot_source(&self) -> Result<BootSource, Error> {
         let relative_kernel_image_path = Path::new("/").join(KERNEL_IMAGE_FILENAME);
 
         let relative_initrd_path: Result<Option<PathBuf>, Error> =
