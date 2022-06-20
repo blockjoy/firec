@@ -16,32 +16,26 @@ use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let jailer = Jailer::builder()
-        .chroot_base_dir(Path::new("/srv"))
-        .exec_file(Path::new("/usr/bin/firecracker"))
-        .build();
-
-    let root_drive = Drive::builder("root", Path::new("debian.ext4"))
-        .is_root_device(true)
-        .build();
-
-    let kernel_args = Some("console=ttyS0 reboot=k panic=1 pci=off random.trust_cpu=on");
+    let kernel_args = "console=ttyS0 reboot=k panic=1 pci=off random.trust_cpu=on";
 
     let iface = Interface::new("eth0", "tap0");
 
-    let machine_cfg = MachineCfg::builder()
-        .vcpu_count(2)
-        .mem_size_mib(1024)
-        .build();
-
-    let config = Config::builder(Path::new("debian-vmlinux"))
-        .jailer_cfg(Some(jailer))
+    let config = Config::builder(None, Path::new("debian-vmlinux"))
+        .jailer_cfg()
+            .chroot_base_dir(Path::new("/srv"))
+            .exec_file(Path::new("/usr/bin/firecracker"))
+            .build()
         .kernel_args(kernel_args)
-        .machine_cfg(machine_cfg)
-        .add_drive(root_drive)
+        .machine_cfg()
+            .vcpu_count(2)
+            .mem_size_mib(1024)
+            .build()
+        .add_drive("root", Path::new("debian.ext4"))
+            .is_root_device(true)
+            .build()
         .add_network_interface(iface)
         .socket_path(Path::new("/tmp/firecracker.socket"))
-        .build()?;
+        .build();
     let mut machine = Machine::create(config).await?;
 
     machine.start().await?;

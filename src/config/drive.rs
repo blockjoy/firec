@@ -2,6 +2,8 @@ use std::{borrow::Cow, path::Path};
 
 use serde::{Deserialize, Serialize};
 
+use super::Builder;
+
 /// Drive configuration.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Drive<'d> {
@@ -10,7 +12,8 @@ pub struct Drive<'d> {
     is_root_device: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     part_uuid: Option<Cow<'d, str>>,
-    pub(crate) path_on_host: Cow<'d, Path>,
+    #[serde(rename = "path_on_host")]
+    pub(crate) src_path: Cow<'d, Path>,
     /* TODO:
 
     /// rate limiter
@@ -21,21 +24,6 @@ pub struct Drive<'d> {
 }
 
 impl<'d> Drive<'d> {
-    /// Create a new `DriveBuilder` instance.
-    pub fn builder<I, P>(drive_id: I, path_on_host: P) -> DriveBuilder<'d>
-    where
-        I: Into<Cow<'d, str>>,
-        P: Into<Cow<'d, Path>>,
-    {
-        DriveBuilder(Drive {
-            drive_id: drive_id.into(),
-            is_read_only: false,
-            is_root_device: false,
-            part_uuid: None,
-            path_on_host: path_on_host.into(),
-        })
-    }
-
     /// The drive ID.
     pub fn drive_id(&self) -> &str {
         &self.drive_id
@@ -56,42 +44,69 @@ impl<'d> Drive<'d> {
         self.part_uuid.as_deref()
     }
 
-    /// Host level path for the guest drive.
-    pub fn path_on_host(&self) -> &Path {
-        &self.path_on_host
+    /// The source path for the guest drive.
+    ///
+    /// This is the path given by the application. The drive is transfered to the chroot directory
+    /// by [`crate::Machine::create`].
+    pub fn src_path(&self) -> &Path {
+        &self.src_path
     }
 }
 
 /// Builder for `Drive`.
 #[derive(Debug)]
-pub struct DriveBuilder<'d>(Drive<'d>);
+pub struct DriveBuilder<'d> {
+    config_builder: Builder<'d>,
+    drive: Drive<'d>,
+}
 
 impl<'d> DriveBuilder<'d> {
+    pub(crate) fn new<I, P>(config_builder: Builder<'d>, drive_id: I, src_path: P) -> Self
+    where
+        I: Into<Cow<'d, str>>,
+        P: Into<Cow<'d, Path>>,
+    {
+        Self {
+            config_builder,
+            drive: Drive {
+                drive_id: drive_id.into(),
+                is_read_only: false,
+                is_root_device: false,
+                part_uuid: None,
+                src_path: src_path.into(),
+            },
+        }
+    }
+
     /// If to-be-created `Drive` will be read-only.
     pub fn is_read_only(mut self, is_read_only: bool) -> Self {
-        self.0.is_read_only = is_read_only;
+        self.drive.is_read_only = is_read_only;
         self
     }
 
     /// If to-be-created `Drive` will be the root device.
     pub fn is_root_device(mut self, is_root_device: bool) -> Self {
-        self.0.is_root_device = is_root_device;
+        self.drive.is_root_device = is_root_device;
         self
     }
 
     /// Set the unique id of the boot partition of this device.
     ///
     /// It is optional and it will be taken into account only if its root device.
-    pub fn part_uuid<U>(mut self, part_uuid: Option<U>) -> Self
+    pub fn part_uuid<U>(mut self, part_uuid: U) -> Self
     where
         U: Into<Cow<'d, str>>,
     {
-        self.0.part_uuid = part_uuid.map(Into::into);
+        self.drive.part_uuid = Some(part_uuid.into());
         self
     }
 
     /// Build the `Drive`.
-    pub fn build(self) -> Drive<'d> {
-        self.0
+    ///
+    /// Returns the main configuration builder with the new drive added to it.
+    pub fn build(mut self) -> Builder<'d> {
+        self.config_builder.0.drives.push(self.drive);
+
+        self.config_builder
     }
 }

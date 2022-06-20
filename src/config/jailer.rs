@@ -3,6 +3,8 @@
 use derivative::Derivative;
 use std::{borrow::Cow, path::Path};
 
+use super::Builder;
+
 /// Jailer specific configuration needed to execute the jailer.
 #[derive(Debug)]
 pub struct Jailer<'j> {
@@ -12,24 +14,12 @@ pub struct Jailer<'j> {
     exec_file: Cow<'j, Path>,
     jailer_binary: Cow<'j, Path>,
     chroot_base_dir: Cow<'j, Path>,
+    workspace_dir: Cow<'j, Path>,
     pub(crate) mode: JailerMode,
     // TODO: We need an equivalent of ChrootStrategy.
 }
 
 impl<'j> Jailer<'j> {
-    /// Create a new `JailerBuilder` instance.
-    pub fn builder() -> JailerBuilder<'j> {
-        JailerBuilder(Jailer {
-            gid: users::get_effective_gid(),
-            uid: users::get_effective_uid(),
-            numa_node: None,
-            exec_file: Path::new("/usr/bin/firecracker").into(),
-            jailer_binary: Path::new("jailer").into(),
-            chroot_base_dir: Path::new("/srv/jailer").into(),
-            mode: JailerMode::default(),
-        })
-    }
-
     /// GID the jailer switches to as it execs the target binary.
     pub fn gid(&self) -> u32 {
         self.gid
@@ -64,6 +54,11 @@ impl<'j> Jailer<'j> {
     pub fn mode(&self) -> &JailerMode {
         &self.mode
     }
+
+    /// The path to the jailer workspace.
+    pub(crate) fn workspace_dir(&self) -> &Cow<'j, Path> {
+        &self.workspace_dir
+    }
 }
 
 /// The mode of the jailer process.
@@ -91,24 +86,43 @@ pub struct Stdio {
 
 /// Builder for `Jailer` instances.
 #[derive(Debug)]
-pub struct JailerBuilder<'j>(Jailer<'j>);
+pub struct JailerBuilder<'j> {
+    jailer: Jailer<'j>,
+    config_builder: Builder<'j>,
+}
 
 impl<'j> JailerBuilder<'j> {
+    pub(crate) fn new(config_builder: Builder<'j>) -> Self {
+        Self {
+            config_builder,
+            jailer: Jailer {
+                gid: users::get_effective_gid(),
+                uid: users::get_effective_uid(),
+                numa_node: None,
+                exec_file: Path::new("/usr/bin/firecracker").into(),
+                jailer_binary: Path::new("jailer").into(),
+                chroot_base_dir: Path::new("/srv/jailer").into(),
+                workspace_dir: Path::new("/srv/jailer/firecracker/root").into(),
+                mode: JailerMode::default(),
+            },
+        }
+    }
+
     /// GID the jailer switches to as it execs the target binary.
     pub fn gid(mut self, gid: u32) -> Self {
-        self.0.gid = gid;
+        self.jailer.gid = gid;
         self
     }
 
     /// UID the jailer switches to as it execs the target binary.
     pub fn uid(mut self, uid: u32) -> Self {
-        self.0.uid = uid;
+        self.jailer.uid = uid;
         self
     }
 
     /// NumaNode represents the NUMA node the process gets assigned to.
     pub fn numa_node(mut self, numa_node: i32) -> Self {
-        self.0.numa_node = Some(numa_node);
+        self.jailer.numa_node = Some(numa_node);
         self
     }
 
@@ -120,7 +134,7 @@ impl<'j> JailerBuilder<'j> {
     where
         P: Into<Cow<'j, Path>>,
     {
-        self.0.exec_file = exec_file.into();
+        self.jailer.exec_file = exec_file.into();
         self
     }
 
@@ -136,7 +150,7 @@ impl<'j> JailerBuilder<'j> {
     where
         P: Into<Cow<'j, Path>>,
     {
-        self.0.jailer_binary = jailer_binary.into();
+        self.jailer.jailer_binary = jailer_binary.into();
         self
     }
 
@@ -147,18 +161,37 @@ impl<'j> JailerBuilder<'j> {
     where
         P: Into<Cow<'j, Path>>,
     {
-        self.0.chroot_base_dir = chroot_base_dir.into();
+        self.jailer.chroot_base_dir = chroot_base_dir.into();
         self
     }
 
     /// The mode of the jailer process.
     pub fn mode(mut self, mode: JailerMode) -> Self {
-        self.0.mode = mode;
+        self.jailer.mode = mode;
         self
     }
 
     /// Build the `Jailer` instance.
-    pub fn build(self) -> Jailer<'j> {
-        self.0
+    ///
+    /// Returns the main configuration builder with new jailer.
+    pub fn build(mut self) -> Builder<'j> {
+        let exec_file_base = self
+            .jailer
+            .exec_file()
+            .file_name()
+            // FIXME: Check `exec_file` in the `exec_file` method so we can just assume it to
+            // have a proper filename here.
+            .expect("invalid jailer exec file path");
+        let id_str = self.config_builder.0.vm_id().to_string();
+        self.jailer.workspace_dir = self
+            .jailer
+            .chroot_base_dir()
+            .join(exec_file_base)
+            .join(&id_str)
+            .join("root")
+            .into();
+        self.config_builder.0.jailer_cfg = Some(self.jailer);
+
+        self.config_builder
     }
 }
