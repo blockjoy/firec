@@ -50,7 +50,7 @@ impl<'m> Machine<'m> {
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
 
-        let jailer_workspace_dir = config.jailer().workspace_dir().as_ref();
+        let jailer_workspace_dir = config.jailer().workspace_dir();
         info!(
             "{vm_id}: Ensuring Jailer workspace directory exist at `{}`",
             jailer_workspace_dir.display()

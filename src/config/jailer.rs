@@ -56,7 +56,7 @@ impl<'j> Jailer<'j> {
     }
 
     /// The path to the jailer workspace.
-    pub(crate) fn workspace_dir(&self) -> &Cow<'j, Path> {
+    pub(crate) fn workspace_dir(&self) -> &Path {
         &self.workspace_dir
     }
 }
