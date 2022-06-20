@@ -61,8 +61,10 @@ impl<'c> Config<'c> {
     ///
     /// # Arguments
     ///
+    /// `vm_id` - The ID of the VM. It's used as the Firecracker's instance ID. Pass `None` to
+    ///           generate a random ID.
     /// `src_kernel_image_path`: The path to the kernel image, that must be an uncompressed ELF image.
-    pub fn builder<P>(src_kernel_image_path: P) -> Builder<'c>
+    pub fn builder<P>(vm_id: Option<Uuid>, src_kernel_image_path: P) -> Builder<'c>
     where
         P: Into<Cow<'c, Path>>,
     {
@@ -79,7 +81,7 @@ impl<'c> Config<'c> {
             drives: Vec::new(),
             machine_cfg: Machine::default(),
             jailer_cfg: None,
-            vm_id: Uuid::new_v4(),
+            vm_id: vm_id.unwrap_or_else(Uuid::new_v4),
             net_ns: None,
             network_interfaces: Vec::new(),
         })
@@ -336,15 +338,6 @@ impl<'c> Builder<'c> {
         JailerBuilder::new(self)
     }
 
-    /// Set a unique identifier for this VM.
-    ///
-    /// It's set to a random uuid if not provided by the user. It's used as the Firecracker's
-    /// instance ID.
-    pub fn vm_id(mut self, vm_id: Uuid) -> Self {
-        self.0.vm_id = vm_id;
-        self
-    }
-
     /// Set the path to a network namespace handle.
     ///
     /// If specified, the application will use this to join the associated network namespace.
@@ -379,8 +372,7 @@ mod tests {
     fn config_host_values() {
         let id = Uuid::new_v4();
 
-        let config = Config::builder(Path::new("/tmp/kernel.path"))
-            .vm_id(id)
+        let config = Config::builder(Some(id), Path::new("/tmp/kernel.path"))
             .jailer_cfg()
             .chroot_base_dir(Path::new("/chroot"))
             .exec_file(Path::new("/usr/bin/firecracker"))
