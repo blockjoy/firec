@@ -211,6 +211,11 @@ impl<'c> Config<'c> {
     pub fn network_interfaces(&self) -> &[network::Interface<'c>] {
         &self.network_interfaces
     }
+
+    pub(crate) fn jailer(&self) -> &Jailer {
+        // FIXME: Assuming jailer for now.
+        self.jailer_cfg.as_ref().expect("no jailer config")
+    }
 }
 
 /// The boot source for the microVM.
