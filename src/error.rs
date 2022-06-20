@@ -5,31 +5,31 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     /// Failed to generate UUID.
-    #[error("Failed to generate UUID")]
+    #[error("Failed to generate UUID: {0}")]
     Uuid(#[from] uuid::Error),
 
     /// IO error.
-    #[error("IO error")]
+    #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
     /// Hyper error.
-    #[error("Hyper error")]
+    #[error("Hyper error: {0}")]
     Hyper(#[from] hyper::Error),
 
     /// HTTP error.
-    #[error("HTTP error")]
+    #[error("HTTP error: {0}")]
     Http(#[from] hyper::http::Error),
 
     /// JSON error.
-    #[error("JSON error")]
+    #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
     /// Integral type conversion error.
-    #[error("Integral type conversion error")]
+    #[error("Integral type conversion error: {0}")]
     TryFromIntError(#[from] std::num::TryFromIntError),
 
     /// Task join error.
-    #[error("Task join error")]
+    #[error("Task join error: {0}")]
     JoinError(#[from] tokio::task::JoinError),
 
     /// Invalid Jailer executable path specified.
