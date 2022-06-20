@@ -93,11 +93,11 @@ impl<'d> DriveBuilder<'d> {
     /// Set the unique id of the boot partition of this device.
     ///
     /// It is optional and it will be taken into account only if its root device.
-    pub fn part_uuid<U>(mut self, part_uuid: Option<U>) -> Self
+    pub fn part_uuid<U>(mut self, part_uuid: U) -> Self
     where
         U: Into<Cow<'d, str>>,
     {
-        self.drive.part_uuid = part_uuid.map(Into::into);
+        self.drive.part_uuid = Some(part_uuid.into());
         self
     }
 

@@ -258,62 +258,62 @@ impl<'c> Builder<'c> {
     }
 
     /// Set the Firecracker log path.
-    pub fn log_path<P>(mut self, log_path: Option<P>) -> Self
+    pub fn log_path<P>(mut self, log_path: P) -> Self
     where
         P: Into<Cow<'c, Path>>,
     {
-        self.0.log_path = log_path.map(Into::into);
+        self.0.log_path = Some(log_path.into());
         self
     }
 
     /// Set the Firecracker log named-pipe path.
-    pub fn log_fifo<P>(mut self, log_fifo: Option<P>) -> Self
+    pub fn log_fifo<P>(mut self, log_fifo: P) -> Self
     where
         P: Into<Cow<'c, Path>>,
     {
-        self.0.log_fifo = log_fifo.map(Into::into);
+        self.0.log_fifo = Some(log_fifo.into());
         self
     }
 
     /// Set the verbosity of Firecracker logging.
-    pub fn log_level(mut self, log_level: Option<LogLevel>) -> Self {
-        self.0.log_level = log_level;
+    pub fn log_level(mut self, log_level: LogLevel) -> Self {
+        self.0.log_level = Some(log_level);
         self
     }
 
     /// Set the Firecracker metrics path.
-    pub fn metrics_path<P>(mut self, metrics_path: Option<P>) -> Self
+    pub fn metrics_path<P>(mut self, metrics_path: P) -> Self
     where
         P: Into<Cow<'c, Path>>,
     {
-        self.0.metrics_path = metrics_path.map(Into::into);
+        self.0.metrics_path = Some(metrics_path.into());
         self
     }
 
     /// Set the Firecracker metrics named-pipe path.
-    pub fn metrics_fifo<P>(mut self, metrics_fifo: Option<P>) -> Self
+    pub fn metrics_fifo<P>(mut self, metrics_fifo: P) -> Self
     where
         P: Into<Cow<'c, Path>>,
     {
-        self.0.metrics_fifo = metrics_fifo.map(Into::into);
+        self.0.metrics_fifo = Some(metrics_fifo.into());
         self
     }
 
     /// Set the initrd image path.
-    pub fn initrd_path<P>(mut self, initrd_path: Option<P>) -> Self
+    pub fn initrd_path<P>(mut self, initrd_path: P) -> Self
     where
         P: Into<Cow<'c, Path>>,
     {
-        self.0.src_initrd_path = initrd_path.map(Into::into);
+        self.0.src_initrd_path = Some(initrd_path.into());
         self
     }
 
     /// Set the command-line arguments that should be passed to the kernel.
-    pub fn kernel_args<P>(mut self, kernel_args: Option<P>) -> Self
+    pub fn kernel_args<P>(mut self, kernel_args: P) -> Self
     where
         P: Into<Cow<'c, str>>,
     {
-        self.0.kernel_args = kernel_args.map(Into::into);
+        self.0.kernel_args = Some(kernel_args.into());
         self
     }
 
@@ -348,11 +348,11 @@ impl<'c> Builder<'c> {
     /// Set the path to a network namespace handle.
     ///
     /// If specified, the application will use this to join the associated network namespace.
-    pub fn net_ns<N>(mut self, net_ns: Option<N>) -> Self
+    pub fn net_ns<N>(mut self, net_ns: N) -> Self
     where
         N: Into<Cow<'c, str>>,
     {
-        self.0.net_ns = net_ns.map(Into::into);
+        self.0.net_ns = Some(net_ns.into());
         self
     }
 
@@ -386,7 +386,7 @@ mod tests {
             .exec_file(Path::new("/usr/bin/firecracker"))
             .mode(JailerMode::Daemon)
             .build()
-            .initrd_path(Some(Path::new("/tmp/initrd.img")))
+            .initrd_path(Path::new("/tmp/initrd.img"))
             .add_drive("root", Path::new("/tmp/debian.ext4"))
             .is_root_device(true)
             .build()

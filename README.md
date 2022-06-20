@@ -16,7 +16,7 @@ use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let kernel_args = Some("console=ttyS0 reboot=k panic=1 pci=off random.trust_cpu=on");
+    let kernel_args = "console=ttyS0 reboot=k panic=1 pci=off random.trust_cpu=on";
 
     let iface = Interface::new("eth0", "tap0");
 
