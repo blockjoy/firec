@@ -365,8 +365,8 @@ impl<'c> Builder<'c> {
     }
 
     /// Build the configuration.
-    pub fn build(self) -> Result<Config<'c>, Error> {
-        Ok(self.0)
+    pub fn build(self) -> Config<'c> {
+        self.0
     }
 }
 
@@ -391,8 +391,7 @@ mod tests {
             .is_root_device(true)
             .build()
             .socket_path(Path::new("/firecracker.socket"))
-            .build()
-            .unwrap();
+            .build();
 
         assert_eq!(
             config.src_initrd_path.as_ref().unwrap().as_os_str(),
