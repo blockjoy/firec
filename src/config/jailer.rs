@@ -14,6 +14,7 @@ pub struct Jailer<'j> {
     exec_file: Cow<'j, Path>,
     jailer_binary: Cow<'j, Path>,
     chroot_base_dir: Cow<'j, Path>,
+    workspace_dir: Cow<'j, Path>,
     pub(crate) mode: JailerMode,
     // TODO: We need an equivalent of ChrootStrategy.
 }
@@ -52,6 +53,11 @@ impl<'j> Jailer<'j> {
     /// The mode of the jailer process.
     pub fn mode(&self) -> &JailerMode {
         &self.mode
+    }
+
+    /// The path to the jailer workspace.
+    pub(crate) fn workspace_dir(&self) -> &Cow<'j, Path> {
+        &self.workspace_dir
     }
 }
 
@@ -96,6 +102,7 @@ impl<'j> JailerBuilder<'j> {
                 exec_file: Path::new("/usr/bin/firecracker").into(),
                 jailer_binary: Path::new("jailer").into(),
                 chroot_base_dir: Path::new("/srv/jailer").into(),
+                workspace_dir: Path::new("/srv/jailer/firecracker/root").into(),
                 mode: JailerMode::default(),
             },
         }
@@ -168,7 +175,23 @@ impl<'j> JailerBuilder<'j> {
     ///
     /// Returns the main configuration builder with new jailer.
     pub fn build(mut self) -> Builder<'j> {
+        let exec_file_base = self
+            .jailer
+            .exec_file()
+            .file_name()
+            // FIXME: Check `exec_file` in the `exec_file` method so we can just assume it to
+            // have a proper filename here.
+            .expect("invalid jailer exec file path");
+        let id_str = self.config_builder.0.vm_id().to_string();
+        self.jailer.workspace_dir = self
+            .jailer
+            .chroot_base_dir()
+            .join(exec_file_base)
+            .join(&id_str)
+            .join("root")
+            .into();
         self.config_builder.0.jailer_cfg = Some(self.jailer);
+
         self.config_builder
     }
 }

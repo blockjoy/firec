@@ -33,7 +33,6 @@ pub struct Config<'c> {
     log_level: Option<LogLevel>,
     metrics_path: Option<Cow<'c, Path>>,
     metrics_fifo: Option<Cow<'c, Path>>,
-    pub(crate) jailer_workspace_dir: Cow<'c, Path>,
     pub(crate) src_kernel_image_path: Cow<'c, Path>,
     pub(crate) src_initrd_path: Option<Cow<'c, Path>>,
     kernel_args: Option<Cow<'c, str>>,
@@ -74,7 +73,6 @@ impl<'c> Config<'c> {
             log_level: None,
             metrics_path: None,
             metrics_fifo: None,
-            jailer_workspace_dir: Path::new("/srv/jailer/firecracker/root").into(),
             src_kernel_image_path: src_kernel_image_path.into(),
             src_initrd_path: None,
             kernel_args: None,
@@ -117,7 +115,7 @@ impl<'c> Config<'c> {
     pub fn host_socket_path(&self) -> PathBuf {
         let socket_path = self.socket_path.as_ref();
         let relative_path = socket_path.strip_prefix("/").unwrap_or(socket_path);
-        self.jailer_workspace_dir.join(relative_path)
+        self.jailer().workspace_dir().join(relative_path)
     }
 
     /// The log path.
@@ -151,7 +149,7 @@ impl<'c> Config<'c> {
 
     /// The kernel image path in chroot location.
     pub fn kernel_image_path(&self) -> PathBuf {
-        self.jailer_workspace_dir.join(KERNEL_IMAGE_FILENAME)
+        self.jailer().workspace_dir().join(KERNEL_IMAGE_FILENAME)
     }
 
     /// The source initrd path.
@@ -171,7 +169,7 @@ impl<'c> Config<'c> {
                     .file_name()
                     .ok_or(Error::InvalidInitrdPath)?
                     .to_owned();
-                Ok(Some(self.jailer_workspace_dir.join(&initrd_filename)))
+                Ok(Some(self.jailer().workspace_dir().join(&initrd_filename)))
             }
             None => Ok(None),
         }
@@ -367,24 +365,7 @@ impl<'c> Builder<'c> {
     }
 
     /// Build the configuration.
-    pub fn build(mut self) -> Result<Config<'c>, Error> {
-        // TODO: Validate other parts of config, e.g paths.
-
-        // FIXME: Assuming jailer for now.
-        let jailer = self.0.jailer_cfg.as_ref().expect("no jailer config");
-
-        let exec_file_base = jailer
-            .exec_file()
-            .file_name()
-            .ok_or(Error::InvalidJailerExecPath)?;
-        let id_str = self.0.vm_id().to_string();
-        self.0.jailer_workspace_dir = jailer
-            .chroot_base_dir()
-            .join(exec_file_base)
-            .join(&id_str)
-            .join("root")
-            .into();
-
+    pub fn build(self) -> Result<Config<'c>, Error> {
         Ok(self.0)
     }
 }

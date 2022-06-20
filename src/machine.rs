@@ -50,7 +50,7 @@ impl<'m> Machine<'m> {
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
 
-        let jailer_workspace_dir = config.jailer_workspace_dir.as_ref();
+        let jailer_workspace_dir = config.jailer().workspace_dir().as_ref();
         info!(
             "{vm_id}: Ensuring Jailer workspace directory exist at `{}`",
             jailer_workspace_dir.display()
@@ -278,7 +278,7 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     pub async fn delete(mut self) -> Result<(), Error> {
         let vm_id = self.config.vm_id().to_string();
-        let jailer_workspace_dir = self.config.jailer_workspace_dir.to_owned();
+        let jailer_workspace_dir = self.config.jailer_cfg().unwrap().workspace_dir().to_owned();
 
         if let MachineState::RUNNING { .. } = self.state {
             if let Err(err) = self.shutdown().await {
