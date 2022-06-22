@@ -1,6 +1,6 @@
 //! A VMM machine.
 
-use std::{path::Path, process::Stdio, time::Duration};
+use std::{io::ErrorKind, path::Path, process::Stdio, time::Duration};
 
 use crate::{
     config::{Config, JailerMode},
@@ -50,7 +50,7 @@ impl<'m> Machine<'m> {
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
 
-        let jailer_workspace_dir = config.jailer().workspace_dir().as_ref();
+        let jailer_workspace_dir = config.jailer().workspace_dir();
         info!(
             "{vm_id}: Ensuring Jailer workspace directory exist at `{}`",
             jailer_workspace_dir.display()
@@ -140,6 +140,8 @@ impl<'m> Machine<'m> {
     pub async fn start(&mut self) -> Result<(), Error> {
         let vm_id = self.config.vm_id().to_string();
         info!("Starting machine with VM ID `{vm_id}`");
+
+        self.cleanup_before_starting().await?;
 
         // FIXME: Assuming jailer for now.
         let jailer = self.config.jailer_cfg.as_mut().expect("no jailer config");
@@ -419,6 +421,34 @@ impl<'m> Machine<'m> {
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), &path).into();
         self.send_request(url, json).await?;
         trace!("{vm_id}: Network configured successfully.");
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn cleanup_before_starting(&self) -> Result<(), Error> {
+        let vm_id = self.config.vm_id();
+        trace!("{vm_id}: Deleting intermediate VM resources before starting...");
+        let socket_path = self.config.host_socket_path();
+        trace!("{vm_id}: Removing socket file {}...", socket_path.display());
+        match fs::remove_file(&socket_path).await {
+            Ok(_) => trace!("{vm_id}: Deleted `{}`", socket_path.display()),
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                trace!("{vm_id}: `{}` not found", socket_path.display())
+            }
+            Err(e) => return Err(e.into()),
+        }
+
+        let jailer_workspace_dir = self.config.jailer().workspace_dir();
+        let dev_dir = jailer_workspace_dir.join("dev");
+        trace!("{vm_id}: Deleting `{}`", dev_dir.display());
+        match fs::remove_dir_all(&dev_dir).await {
+            Ok(_) => trace!("{vm_id}: Deleted `{}`", dev_dir.display()),
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                trace!("{vm_id}: `{}` not found", dev_dir.display())
+            }
+            Err(e) => return Err(e.into()),
+        }
 
         Ok(())
     }
