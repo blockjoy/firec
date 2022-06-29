@@ -8,7 +8,7 @@ use crate::{
 };
 use serde::Serialize;
 use serde_json::json;
-use sysinfo::{Pid, ProcessExt, ProcessRefreshKind, System, SystemExt};
+use sysinfo::{Pid, PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 use tokio::{
     fs::{self, copy, DirBuilder},
     process::Command,
@@ -194,14 +194,16 @@ impl<'m> Machine<'m> {
             .stdout(stdout)
             .stderr(stderr);
         trace!("{vm_id}: Running command: {:?}", cmd);
-        let mut child = cmd.spawn()?;
-        let pid = match child.id() {
-            Some(id) => id.try_into()?,
-            None => {
-                let exit_status = child.wait().await?;
-                return Err(Error::ProcessExitedImmediatelly { exit_status });
-            }
-        };
+        cmd.spawn()?;
+        sleep(Duration::from_secs(5)).await;
+
+        let fc_bin_name = jailer
+            .exec_file()
+            .file_name()
+            .ok_or(Error::InvalidJailerExecPath)?
+            .to_str()
+            .ok_or(Error::InvalidJailerExecPath)?;
+        let pid = get_process_pid(fc_bin_name, &vm_id)?;
         self.state = MachineState::RUNNING { pid };
 
         // Give some time to the jailer to start up and create the socket.
@@ -461,4 +463,20 @@ enum Action {
     SendCtrlAltDel,
     #[allow(unused)]
     FlushMetrics,
+}
+
+/// Get the pid of the running VM process knowing its process name and part of command line.
+fn get_process_pid(process_name: &str, cmd: &str) -> Result<i32, Error> {
+    let mut sys = System::new();
+    // TODO: would be great to save the System and not do a full refresh each time
+    sys.refresh_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::everything()));
+    let processes: Vec<_> = sys
+        .processes_by_name(process_name)
+        .filter(|&process| process.cmd().contains(&cmd.to_string()))
+        .collect();
+
+    processes
+        .first()
+        .ok_or(Error::ProcessNotStarted)
+        .and_then(|p| p.pid().as_u32().try_into().map_err(Into::into))
 }

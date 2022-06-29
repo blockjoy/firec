@@ -72,11 +72,4 @@ pub enum Error {
     /// Process not killed
     #[error("Process not killed for pid: {0}")]
     ProcessNotKilled(i32),
-
-    /// Process exited immediatelly after start.
-    #[error("Process exited immediatelly with status: {exit_status}")]
-    ProcessExitedImmediatelly {
-        /// Result of a process after it has terminated
-        exit_status: std::process::ExitStatus,
-    },
 }
