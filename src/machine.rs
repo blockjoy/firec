@@ -160,10 +160,14 @@ impl<'m> Machine<'m> {
             ),
         };
 
-        let mut cmd = &mut Command::new(jailer.jailer_binary());
-        if let Some(daemonize_arg) = daemonize_arg {
-            cmd = cmd.arg(daemonize_arg);
-        }
+        let mut cmd = &mut Command::new("tmux");
+        cmd = cmd.args(&[
+            "new-session",
+            "-d",
+            "-s",
+            &vm_id.to_string(),
+            jailer.jailer_binary().to_str().unwrap(),
+        ]);
         let cmd = cmd
             .args(&[
                 "--id",
