@@ -146,24 +146,38 @@ impl<'m> Machine<'m> {
 
         // FIXME: Assuming jailer for now.
         let jailer = self.config.jailer_cfg.as_mut().expect("no jailer config");
-        let (daemonize_arg, stdin, stdout, stderr) = match &mut jailer.mode {
+        let jailer_bin = jailer.jailer_binary().to_owned();
+        let (mut cmd, daemonize_arg, stdin, stdout, stderr) = match &mut jailer.mode {
             JailerMode::Daemon => (
+                Command::new(jailer.jailer_binary()),
                 Some("--daemonize"),
                 Stdio::null(),
                 Stdio::null(),
                 Stdio::null(),
             ),
             JailerMode::Attached(stdio) => (
+                Command::new(jailer_bin),
                 None,
                 stdio.stdin.take().unwrap_or_else(Stdio::inherit),
                 stdio.stdout.take().unwrap_or_else(Stdio::inherit),
                 stdio.stderr.take().unwrap_or_else(Stdio::inherit),
             ),
+            JailerMode::Tmux => {
+                let mut cmd = Command::new("tmux");
+                cmd.args(&[
+                    "new-session",
+                    "-d",
+                    "-s",
+                    &vm_id.to_string(),
+                    jailer.jailer_binary().to_str().unwrap(),
+                ]);
+
+                (cmd, None, Stdio::null(), Stdio::null(), Stdio::null())
+            }
         };
 
-        let mut cmd = &mut Command::new(jailer.jailer_binary());
         if let Some(daemonize_arg) = daemonize_arg {
-            cmd = cmd.arg(daemonize_arg);
+            cmd.arg(daemonize_arg);
         }
         let cmd = cmd
             .args(&[
@@ -224,10 +238,10 @@ impl<'m> Machine<'m> {
                 e
             );
             self.force_shutdown().await.unwrap_or_else(|e| {
-                // We want to return to original error so only log the error from shutdown.
-                trace!("{vm_id}: Failed to force shutdown: {}", e);
                 // `force_shutdown` only updates the state on success.
                 self.state = MachineState::SHUTOFF;
+                // We want to return to original error so only log the error from shutdown.
+                trace!("{vm_id}: Failed to force shutdown: {}", e);
             });
 
             return Err(e);
@@ -252,25 +266,36 @@ impl<'m> Machine<'m> {
             }
             MachineState::RUNNING { pid } => pid,
         };
-        let killed = task::spawn_blocking(move || {
-            let mut sys = System::new();
-            if sys.refresh_process_specifics(Pid::from(pid), ProcessRefreshKind::new()) {
-                match sys.process(Pid::from(pid)) {
-                    Some(process) => Ok(process.kill()),
-                    None => Err(Error::ProcessNotRunning(pid)),
-                }
-            } else {
-                Err(Error::ProcessNotRunning(pid))
-            }
-        })
-        .await??;
+        match self.config.jailer_cfg().expect("no jailer config").mode() {
+            JailerMode::Daemon | JailerMode::Attached(_) => {
+                let killed = task::spawn_blocking(move || {
+                    let mut sys = System::new();
+                    if sys.refresh_process_specifics(Pid::from(pid), ProcessRefreshKind::new()) {
+                        match sys.process(Pid::from(pid)) {
+                            Some(process) => Ok(process.kill()),
+                            None => Err(Error::ProcessNotRunning(pid)),
+                        }
+                    } else {
+                        Err(Error::ProcessNotRunning(pid))
+                    }
+                })
+                .await??;
 
-        if !killed {
-            return Err(Error::ProcessNotKilled(pid));
+                if !killed {
+                    return Err(Error::ProcessNotKilled(pid));
+                }
+                trace!("{vm_id}: Successfully sent KILL signal to VM (pid: `{pid}`).");
+            }
+            JailerMode::Tmux => {
+                // In case of tmux, we need to kill the tmux session.
+                let cmd = &mut Command::new("tmux");
+                cmd.args(&["kill-session", "-t", &vm_id.to_string()]);
+                trace!("{vm_id}: Running command: {:?}", cmd);
+                cmd.spawn()?.wait().await?;
+            }
         }
 
         self.state = MachineState::SHUTOFF;
-        trace!("{vm_id}: Successfully sent KILL signal to VM (pid: `{pid}`).");
 
         Ok(())
     }

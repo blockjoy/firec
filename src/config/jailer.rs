@@ -70,6 +70,10 @@ pub enum JailerMode {
     Attached(Stdio),
     /// Calls setsid() and redirect stdin, stdout, and stderr to /dev/null.
     Daemon,
+    /// Launch the jailer in a tmux session.
+    ///
+    /// The tmux session will be named `<VM_ID>` and tmux will be launched in detached mode.
+    Tmux,
 }
 
 /// The standard IO handlers.
