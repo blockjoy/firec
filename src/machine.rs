@@ -209,12 +209,7 @@ impl<'m> Machine<'m> {
         info!("{vm_id}: Waiting for the jailer to start up...");
         sleep(Duration::from_secs(10)).await;
 
-        info!("{vm_id}: Setting the VM...");
-        self.setup_resources().await?;
-        self.setup_boot_source().await?;
-        self.setup_drives().await?;
-        self.setup_network().await?;
-        info!("{vm_id}: VM successfully setup.");
+        self.setup_vm().await?;
 
         trace!("{vm_id}: Booting the VM instance...");
         self.send_action(Action::InstanceStart).await?;
@@ -355,6 +350,20 @@ impl<'m> Machine<'m> {
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/actions").into();
         let json = serde_json::to_string(&action)?;
         self.send_request(url, json).await?;
+
+        Ok(())
+    }
+
+    /// Prepare the machine for running.
+    #[instrument(skip_all)]
+    async fn setup_vm(&self) -> Result<(), Error> {
+        let vm_id = self.config.vm_id();
+        info!("{vm_id}: Setting the VM...");
+        self.setup_resources().await?;
+        self.setup_boot_source().await?;
+        self.setup_drives().await?;
+        self.setup_network().await?;
+        info!("{vm_id}: VM successfully setup.");
 
         Ok(())
     }
