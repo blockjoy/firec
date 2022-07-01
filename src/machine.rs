@@ -6,6 +6,7 @@ use crate::{
     config::{Config, JailerMode},
     Error,
 };
+use futures_util::TryFutureExt;
 use serde::Serialize;
 use serde_json::json;
 use sysinfo::{Pid, ProcessExt, ProcessRefreshKind, System, SystemExt};
@@ -209,10 +210,28 @@ impl<'m> Machine<'m> {
         info!("{vm_id}: Waiting for the jailer to start up...");
         sleep(Duration::from_secs(10)).await;
 
-        self.setup_vm().await?;
+        if let Err(e) = self
+            .setup_vm()
+            .and_then(|_| async {
+                trace!("{vm_id}: Booting the VM instance...");
 
-        trace!("{vm_id}: Booting the VM instance...");
-        self.send_action(Action::InstanceStart).await?;
+                self.send_action(Action::InstanceStart).await
+            })
+            .await
+        {
+            trace!(
+                "{vm_id}: Failed to boot VM instance: {}. Force shutting down..",
+                e
+            );
+            self.force_shutdown().await.unwrap_or_else(|e| {
+                // We want to return to original error so only log the error from shutdown.
+                trace!("{vm_id}: Failed to force shutdown: {}", e);
+                // `force_shutdown` only updates the state on success.
+                self.state = MachineState::SHUTOFF;
+            });
+
+            return Err(e);
+        }
 
         trace!("{vm_id}: VM started successfully.");
 
