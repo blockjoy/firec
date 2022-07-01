@@ -270,7 +270,7 @@ impl<'m> Machine<'m> {
         }
 
         self.state = MachineState::SHUTOFF;
-        trace!("{vm_id}: VM sent KILL signal successfully.");
+        trace!("{vm_id}: Successfully sent KILL signal to VM (pid: `{pid}`).");
 
         Ok(())
     }
