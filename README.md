@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let iface = Interface::new("eth0", "tap0");
 
-    let config = Config::builder(None, Path::new("debian-vmlinux"))
+    let config = Config::builder("butterfly-dragon-kitty", Path::new("debian-vmlinux"))
         .jailer_cfg()
             .chroot_base_dir(Path::new("/srv"))
             .exec_file(Path::new("/usr/bin/firecracker"))

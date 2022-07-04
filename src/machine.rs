@@ -47,7 +47,7 @@ impl<'m> Machine<'m> {
     /// The machine is not started yet.
     #[instrument(skip_all)]
     pub async fn create(config: Config<'m>) -> Result<Machine<'m>, Error> {
-        let vm_id = *config.vm_id();
+        let vm_id = config.vm_id();
         info!("Creating new machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}", config);
 
@@ -123,7 +123,7 @@ impl<'m> Machine<'m> {
     /// The machine should be created first via call to `create`
     #[instrument(skip_all)]
     pub async fn connect(config: Config<'m>, state: MachineState) -> Machine<'m> {
-        let vm_id = *config.vm_id();
+        let vm_id = config.vm_id();
         info!("Connecting to machine with VM ID `{vm_id}`");
         trace!("{vm_id}: Configuration: {:?}, state: {:?}", config, state);
 
@@ -168,7 +168,7 @@ impl<'m> Machine<'m> {
                     "new-session",
                     "-d",
                     "-s",
-                    &vm_id.to_string(),
+                    &vm_id,
                     jailer.jailer_binary().to_str().unwrap(),
                 ]);
 
@@ -289,7 +289,7 @@ impl<'m> Machine<'m> {
             JailerMode::Tmux => {
                 // In case of tmux, we need to kill the tmux session.
                 let cmd = &mut Command::new("tmux");
-                cmd.args(&["kill-session", "-t", &vm_id.to_string()]);
+                cmd.args(&["kill-session", "-t", vm_id]);
                 trace!("{vm_id}: Running command: {:?}", cmd);
                 cmd.spawn()?.wait().await?;
             }

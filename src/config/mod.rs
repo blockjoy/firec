@@ -17,7 +17,6 @@ pub mod network;
 pub use drive::*;
 pub use jailer::*;
 pub use machine::*;
-use uuid::Uuid;
 
 use crate::Error;
 
@@ -45,7 +44,7 @@ pub struct Config<'c> {
     //pub fifo_log_writer: Option<Box<dyn AsyncWrite>>,
     machine_cfg: Machine<'c>,
     pub(crate) jailer_cfg: Option<Jailer<'c>>,
-    vm_id: Uuid,
+    vm_id: Cow<'c, str>,
     net_ns: Option<Cow<'c, str>>,
     network_interfaces: Vec<network::Interface<'c>>,
     /* TODO:
@@ -61,11 +60,11 @@ impl<'c> Config<'c> {
     ///
     /// # Arguments
     ///
-    /// `vm_id` - The ID of the VM. It's used as the Firecracker's instance ID. Pass `None` to
-    ///           generate a random ID.
+    /// `vm_id` - The ID of the VM. It's used as the Firecracker's instance ID.
     /// `src_kernel_image_path`: The path to the kernel image, that must be an uncompressed ELF image.
-    pub fn builder<P>(vm_id: Option<Uuid>, src_kernel_image_path: P) -> Builder<'c>
+    pub fn builder<V, P>(vm_id: V, src_kernel_image_path: P) -> Builder<'c>
     where
+        V: Into<Cow<'c, str>>,
         P: Into<Cow<'c, Path>>,
     {
         Builder(Self {
@@ -81,7 +80,7 @@ impl<'c> Config<'c> {
             drives: Vec::new(),
             machine_cfg: Machine::default(),
             jailer_cfg: None,
-            vm_id: vm_id.unwrap_or_else(Uuid::new_v4),
+            vm_id: vm_id.into(),
             net_ns: None,
             network_interfaces: Vec::new(),
         })
@@ -198,7 +197,7 @@ impl<'c> Config<'c> {
     }
 
     /// The VM ID.
-    pub fn vm_id(&self) -> &Uuid {
+    pub fn vm_id(&self) -> &str {
         &self.vm_id
     }
 
@@ -366,13 +365,11 @@ impl<'c> Builder<'c> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Uuid;
-
     #[test]
     fn config_host_values() {
-        let id = Uuid::new_v4();
+        let id = "this-is-a-unique-id";
 
-        let config = Config::builder(Some(id), Path::new("/tmp/kernel.path"))
+        let config = Config::builder(id, Path::new("/tmp/kernel.path"))
             .jailer_cfg()
             .chroot_base_dir(Path::new("/chroot"))
             .exec_file(Path::new("/usr/bin/firecracker"))
