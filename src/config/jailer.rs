@@ -15,7 +15,7 @@ pub struct Jailer<'j> {
     jailer_binary: Cow<'j, Path>,
     chroot_base_dir: Cow<'j, Path>,
     workspace_dir: Cow<'j, Path>,
-    pub(crate) mode: JailerMode,
+    pub(crate) mode: JailerMode<'j>,
     // TODO: We need an equivalent of ChrootStrategy.
 }
 
@@ -64,7 +64,7 @@ impl<'j> Jailer<'j> {
 /// The mode of the jailer process.
 #[derive(Derivative)]
 #[derivative(Debug, Default)]
-pub enum JailerMode {
+pub enum JailerMode<'j> {
     /// The jailer child process will run attached to the parent process.
     #[derivative(Default)]
     Attached(Stdio),
@@ -72,8 +72,9 @@ pub enum JailerMode {
     Daemon,
     /// Launch the jailer in a tmux session.
     ///
-    /// The tmux session will be named `<VM_ID>` and tmux will be launched in detached mode.
-    Tmux,
+    /// If the session name is not provided, `<VM_ID>` is used as the session name. tmux will be
+    /// launched in detached mode.
+    Tmux(Option<Cow<'j, str>>),
 }
 
 /// The standard IO handlers.
@@ -170,7 +171,7 @@ impl<'j> JailerBuilder<'j> {
     }
 
     /// The mode of the jailer process.
-    pub fn mode(mut self, mode: JailerMode) -> Self {
+    pub fn mode(mut self, mode: JailerMode<'j>) -> Self {
         self.jailer.mode = mode;
         self
     }
