@@ -162,13 +162,16 @@ impl<'m> Machine<'m> {
                 stdio.stdout.take().unwrap_or_else(Stdio::inherit),
                 stdio.stderr.take().unwrap_or_else(Stdio::inherit),
             ),
-            JailerMode::Tmux => {
+            JailerMode::Tmux(session_name) => {
+                let session_name = session_name
+                    .clone()
+                    .unwrap_or_else(|| vm_id.to_string().into());
                 let mut cmd = Command::new("tmux");
                 cmd.args(&[
                     "new-session",
                     "-d",
                     "-s",
-                    &vm_id.to_string(),
+                    &session_name,
                     jailer.jailer_binary().to_str().unwrap(),
                 ]);
 
@@ -286,10 +289,13 @@ impl<'m> Machine<'m> {
                 }
                 trace!("{vm_id}: Successfully sent KILL signal to VM (pid: `{pid}`).");
             }
-            JailerMode::Tmux => {
+            JailerMode::Tmux(session_name) => {
+                let session_name = session_name
+                    .clone()
+                    .unwrap_or_else(|| vm_id.to_string().into());
                 // In case of tmux, we need to kill the tmux session.
                 let cmd = &mut Command::new("tmux");
-                cmd.args(&["kill-session", "-t", &vm_id.to_string()]);
+                cmd.args(&["kill-session", "-t", &session_name]);
                 trace!("{vm_id}: Running command: {:?}", cmd);
                 cmd.spawn()?.wait().await?;
             }
