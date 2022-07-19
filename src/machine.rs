@@ -413,6 +413,7 @@ impl<'m> Machine<'m> {
         self.setup_boot_source().await?;
         self.setup_drives().await?;
         self.setup_network().await?;
+        self.setup_vsock().await?;
         info!("{vm_id}: VM successfully setup.");
 
         Ok(())
@@ -480,6 +481,22 @@ impl<'m> Machine<'m> {
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), &path).into();
         self.send_request(url, json).await?;
         trace!("{vm_id}: Network configured successfully.");
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn setup_vsock(&self) -> Result<(), Error> {
+        let vsock_cfg = match self.config.vsock_cfg() {
+            Some(vsock) => vsock,
+            None => return Ok(()),
+        };
+        let vm_id = self.config.vm_id();
+        trace!("{vm_id}: Configuring vsock...");
+        let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/vsock").into();
+        let json = serde_json::to_string(vsock_cfg)?;
+        self.send_request(url, json).await?;
+        trace!("{vm_id}: vsock configured successfully.");
 
         Ok(())
     }
