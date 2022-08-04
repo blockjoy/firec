@@ -163,7 +163,7 @@ impl<'c> Config<'c> {
     ///
     /// This is the path given by the application. It's transfered to the chroot directory by
     /// [`crate::Machine::create`]. The path inside the chroot can be queried using
-    /// [`Config::initrd_image_path`].
+    /// [`Config::initrd_path`].
     pub fn src_initrd_path(&self) -> Option<&Path> {
         self.src_initrd_path.as_ref().map(AsRef::as_ref)
     }
