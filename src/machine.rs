@@ -516,6 +516,21 @@ impl<'m> Machine<'m> {
         }
 
         let jailer_workspace_dir = self.config.jailer().workspace_dir();
+
+        // Remove the vsock socket file if it exists.
+        if let Some(path) = self.config.vsock_cfg().map(|v| v.uds_path()) {
+            let relative_path = path.strip_prefix("/").unwrap_or(path);
+            let path = jailer_workspace_dir.join(relative_path);
+            trace!("{vm_id}: Removing vsock socket file {}...", path.display());
+            match fs::remove_file(&path).await {
+                Ok(_) => trace!("{vm_id}: Deleted `{}`", path.display()),
+                Err(e) if e.kind() == ErrorKind::NotFound => {
+                    trace!("{vm_id}: `{}` not found", path.display())
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+
         let dev_dir = jailer_workspace_dir.join("dev");
         trace!("{vm_id}: Deleting `{}`", dev_dir.display());
         match fs::remove_dir_all(&dev_dir).await {
