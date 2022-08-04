@@ -413,6 +413,7 @@ impl<'m> Machine<'m> {
         self.setup_boot_source().await?;
         self.setup_drives().await?;
         self.setup_network().await?;
+        self.setup_vsock().await?;
         info!("{vm_id}: VM successfully setup.");
 
         Ok(())
@@ -485,6 +486,22 @@ impl<'m> Machine<'m> {
     }
 
     #[instrument(skip_all)]
+    async fn setup_vsock(&self) -> Result<(), Error> {
+        let vsock_cfg = match self.config.vsock_cfg() {
+            Some(vsock) => vsock,
+            None => return Ok(()),
+        };
+        let vm_id = self.config.vm_id();
+        trace!("{vm_id}: Configuring vsock...");
+        let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/vsock").into();
+        let json = serde_json::to_string(vsock_cfg)?;
+        self.send_request(url, json).await?;
+        trace!("{vm_id}: vsock configured successfully.");
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
     async fn cleanup_before_starting(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Deleting intermediate VM resources before starting...");
@@ -499,6 +516,21 @@ impl<'m> Machine<'m> {
         }
 
         let jailer_workspace_dir = self.config.jailer().workspace_dir();
+
+        // Remove the vsock socket file if it exists.
+        if let Some(path) = self.config.vsock_cfg().map(|v| v.uds_path()) {
+            let relative_path = path.strip_prefix("/").unwrap_or(path);
+            let path = jailer_workspace_dir.join(relative_path);
+            trace!("{vm_id}: Removing vsock socket file {}...", path.display());
+            match fs::remove_file(&path).await {
+                Ok(_) => trace!("{vm_id}: Deleted `{}`", path.display()),
+                Err(e) if e.kind() == ErrorKind::NotFound => {
+                    trace!("{vm_id}: `{}` not found", path.display())
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+
         let dev_dir = jailer_workspace_dir.join("dev");
         trace!("{vm_id}: Deleting `{}`", dev_dir.display());
         match fs::remove_dir_all(&dev_dir).await {

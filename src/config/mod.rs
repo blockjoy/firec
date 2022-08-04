@@ -13,10 +13,13 @@ mod jailer;
 mod machine;
 /// Network configuration.
 pub mod network;
+mod vsock;
 
 pub use drive::*;
 pub use jailer::*;
 pub use machine::*;
+pub use vsock::*;
+
 use uuid::Uuid;
 
 use crate::Error;
@@ -48,6 +51,7 @@ pub struct Config<'c> {
     vm_id: Uuid,
     net_ns: Option<Cow<'c, str>>,
     network_interfaces: Vec<network::Interface<'c>>,
+    vsock_cfg: Option<VSock<'c>>,
     /* TODO:
 
 
@@ -84,6 +88,7 @@ impl<'c> Config<'c> {
             vm_id: vm_id.unwrap_or_else(Uuid::new_v4),
             net_ns: None,
             network_interfaces: Vec::new(),
+            vsock_cfg: None,
         })
     }
 
@@ -158,7 +163,7 @@ impl<'c> Config<'c> {
     ///
     /// This is the path given by the application. It's transfered to the chroot directory by
     /// [`crate::Machine::create`]. The path inside the chroot can be queried using
-    /// [`Config::initrd_image_path`].
+    /// [`Config::initrd_path`].
     pub fn src_initrd_path(&self) -> Option<&Path> {
         self.src_initrd_path.as_ref().map(AsRef::as_ref)
     }
@@ -210,6 +215,11 @@ impl<'c> Config<'c> {
     /// The network interfaces.
     pub fn network_interfaces(&self) -> &[network::Interface<'c>] {
         &self.network_interfaces
+    }
+
+    /// The vsock configuration.
+    pub fn vsock_cfg(&self) -> Option<&VSock<'c>> {
+        self.vsock_cfg.as_ref()
     }
 
     pub(crate) fn jailer(&self) -> &Jailer {
@@ -357,6 +367,21 @@ impl<'c> Builder<'c> {
         self
     }
 
+    /// Set the vsock configuration.
+    ///
+    /// For guest-initialiated connections, a `_PORT` suffix is expected in the actual socket
+    /// filename of `uds_path`.
+    pub fn vsock_cfg<P>(mut self, guest_cid: u32, uds_path: P) -> Self
+    where
+        P: Into<Cow<'c, Path>>,
+    {
+        self.0.vsock_cfg = Some(VSock {
+            guest_cid,
+            uds_path: uds_path.into(),
+        });
+        self
+    }
+
     /// Build the configuration.
     pub fn build(self) -> Config<'c> {
         self.0
@@ -383,6 +408,7 @@ mod tests {
             .is_root_device(true)
             .build()
             .socket_path(Path::new("/firecracker.socket"))
+            .vsock_cfg(3, Path::new("/vsock.sock"))
             .build();
 
         assert_eq!(
@@ -414,6 +440,15 @@ mod tests {
         assert_eq!(
             config.host_socket_path().as_os_str().to_string_lossy(),
             format!("/chroot/firecracker/{}/root/firecracker.socket", id)
+        );
+        assert_eq!(
+            config
+                .vsock_cfg()
+                .unwrap()
+                .uds_path()
+                .as_os_str()
+                .to_string_lossy(),
+            format!("/vsock.sock")
         );
 
         let boot_source = config.boot_source().unwrap();
