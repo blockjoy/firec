@@ -341,11 +341,17 @@ impl<'m> Machine<'m> {
         }
 
         trace!("{vm_id}: Deleting VM resources...");
+        // The jailer workspace dir is `root` dir under the VM dir and we want to delete everything
+        // related to the VM so we need to delete the VM dir, and not just the workspace dir under
+        // it.
+        let vm_dir = jailer_workspace_dir
+            .parent()
+            .expect("VM workspace dir must have a parent");
         info!(
-            "{vm_id}: Deleting VM workspace directory at `{}`",
-            jailer_workspace_dir.display()
+            "{vm_id}: Deleting VM jailer directory at `{}`",
+            vm_dir.display()
         );
-        fs::remove_dir_all(jailer_workspace_dir).await?;
+        fs::remove_dir_all(vm_dir).await?;
         trace!("{vm_id}: VM deleted successfully.");
 
         Ok(())
