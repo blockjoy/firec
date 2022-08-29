@@ -16,7 +16,7 @@ use tokio::{
     task,
     time::sleep,
 };
-use tracing::{info, instrument, trace};
+use tracing::{debug, info, instrument};
 
 use hyper::{Body, Client, Method, Request};
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
@@ -49,7 +49,7 @@ impl<'m> Machine<'m> {
     pub async fn create(config: Config<'m>) -> Result<Machine<'m>, Error> {
         let vm_id = *config.vm_id();
         info!("Creating new machine with VM ID `{vm_id}`");
-        trace!("{vm_id}: Configuration: {:?}", config);
+        debug!("{vm_id}: Configuration: {:?}", config);
 
         let jailer_workspace_dir = config.jailer().workspace_dir();
         info!(
@@ -62,7 +62,7 @@ impl<'m> Machine<'m> {
             .await?;
 
         let dest = config.kernel_image_path();
-        trace!(
+        debug!(
             "{vm_id}: Copying kernel image from `{}` to `{}`",
             config.src_kernel_image_path.display(),
             dest.display()
@@ -72,7 +72,7 @@ impl<'m> Machine<'m> {
         if let (Some(src_initrd_path), Some(initrd_path)) =
             (config.src_initrd_path(), config.initrd_path()?)
         {
-            trace!(
+            debug!(
                 "{vm_id}: Copying initrd from `{}` to `{}`",
                 src_initrd_path.display(),
                 initrd_path.display()
@@ -86,7 +86,7 @@ impl<'m> Machine<'m> {
                 .file_name()
                 .ok_or(Error::InvalidDrivePath)?;
             let dest = jailer_workspace_dir.join(drive_filename);
-            trace!(
+            debug!(
                 "{vm_id}: Copying drive `{}` from `{}` to `{}`",
                 drive.drive_id(),
                 drive.src_path().display(),
@@ -96,7 +96,7 @@ impl<'m> Machine<'m> {
         }
 
         if let Some(socket_dir) = config.host_socket_path().parent() {
-            trace!(
+            debug!(
                 "{vm_id}: Ensuring socket directory exist at `{}`",
                 socket_dir.display()
             );
@@ -125,7 +125,7 @@ impl<'m> Machine<'m> {
     pub async fn connect(config: Config<'m>, state: MachineState) -> Machine<'m> {
         let vm_id = *config.vm_id();
         info!("Connecting to machine with VM ID `{vm_id}`");
-        trace!("{vm_id}: Configuration: {:?}, state: {:?}", config, state);
+        debug!("{vm_id}: Configuration: {:?}, state: {:?}", config, state);
 
         let client = Client::unix();
 
@@ -211,7 +211,7 @@ impl<'m> Machine<'m> {
             .stdin(stdin)
             .stdout(stdout)
             .stderr(stderr);
-        trace!("{vm_id}: Running command: {:?}", cmd);
+        debug!("{vm_id}: Running command: {:?}", cmd);
         let mut child = cmd.spawn()?;
         let pid = match child.id() {
             Some(id) => id.try_into()?,
@@ -230,13 +230,13 @@ impl<'m> Machine<'m> {
         if let Err(e) = self
             .setup_vm()
             .and_then(|_| async {
-                trace!("{vm_id}: Booting the VM instance...");
+                debug!("{vm_id}: Booting the VM instance...");
 
                 self.send_action(Action::InstanceStart).await
             })
             .await
         {
-            trace!(
+            debug!(
                 "{vm_id}: Failed to boot VM instance: {}. Force shutting down..",
                 e
             );
@@ -244,13 +244,13 @@ impl<'m> Machine<'m> {
                 // `force_shutdown` only updates the state on success.
                 self.state = MachineState::SHUTOFF;
                 // We want to return to original error so only log the error from shutdown.
-                trace!("{vm_id}: Failed to force shutdown: {}", e);
+                debug!("{vm_id}: Failed to force shutdown: {}", e);
             });
 
             return Err(e);
         }
 
-        trace!("{vm_id}: VM started successfully.");
+        debug!("{vm_id}: VM started successfully.");
 
         Ok(())
     }
@@ -261,7 +261,7 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     pub async fn force_shutdown(&mut self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Killing VM...");
+        debug!("{vm_id}: Killing VM...");
 
         let pid = match self.state {
             MachineState::SHUTOFF => {
@@ -287,7 +287,7 @@ impl<'m> Machine<'m> {
                 if !killed {
                     return Err(Error::ProcessNotKilled(pid));
                 }
-                trace!("{vm_id}: Successfully sent KILL signal to VM (pid: `{pid}`).");
+                debug!("{vm_id}: Successfully sent KILL signal to VM (pid: `{pid}`).");
             }
             JailerMode::Tmux(session_name) => {
                 let session_name = session_name
@@ -296,7 +296,7 @@ impl<'m> Machine<'m> {
                 // In case of tmux, we need to kill the tmux session.
                 let cmd = &mut Command::new("tmux");
                 cmd.args(&["kill-session", "-t", &session_name]);
-                trace!("{vm_id}: Running command: {:?}", cmd);
+                debug!("{vm_id}: Running command: {:?}", cmd);
                 cmd.spawn()?.wait().await?;
             }
         }
@@ -310,9 +310,9 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     pub async fn shutdown(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
+        debug!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
         self.send_action(Action::SendCtrlAltDel).await?;
-        trace!("{vm_id}: CTRL+ALT+DEL sent to VM successfully.");
+        debug!("{vm_id}: CTRL+ALT+DEL sent to VM successfully.");
 
         Ok(())
     }
@@ -329,18 +329,18 @@ impl<'m> Machine<'m> {
 
         if let MachineState::RUNNING { .. } = self.state {
             if let Err(err) = self.shutdown().await {
-                trace!("{vm_id}: Shutdown error: {err}");
+                debug!("{vm_id}: Shutdown error: {err}");
             } else {
                 info!("{vm_id}: Waiting for the VM process to shut down...");
                 sleep(Duration::from_secs(10)).await;
             }
 
             if let Err(err) = self.force_shutdown().await {
-                trace!("{vm_id}: Forced shutdown error: {err}");
+                debug!("{vm_id}: Forced shutdown error: {err}");
             }
         }
 
-        trace!("{vm_id}: Deleting VM resources...");
+        debug!("{vm_id}: Deleting VM resources...");
         // The jailer workspace dir is `root` dir under the VM dir and we want to delete everything
         // related to the VM so we need to delete the VM dir, and not just the workspace dir under
         // it.
@@ -352,7 +352,7 @@ impl<'m> Machine<'m> {
             vm_dir.display()
         );
         fs::remove_dir_all(vm_dir).await?;
-        trace!("{vm_id}: VM deleted successfully.");
+        debug!("{vm_id}: VM deleted successfully.");
 
         Ok(())
     }
@@ -372,7 +372,7 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     async fn send_request(&self, url: hyper::Uri, body: String) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: sending request to url={url}, body={body}");
+        debug!("{vm_id}: sending request to url={url}, body={body}");
 
         let request = Request::builder()
             .method(Method::PUT)
@@ -385,15 +385,15 @@ impl<'m> Machine<'m> {
 
         let status = resp.status();
         if status.is_success() {
-            trace!("{vm_id}: request to url={url} successful");
+            debug!("{vm_id}: request to url={url} successful");
         } else {
             let body = hyper::body::to_bytes(resp.into_body()).await?;
             let body = if body.is_empty() {
-                trace!("{vm_id}: request to url={url} failed: status={status}");
+                debug!("{vm_id}: request to url={url} failed: status={status}");
                 None
             } else {
                 let body = String::from_utf8_lossy(&body).into_owned();
-                trace!("{vm_id}: request to url={url} failed: status={status}, body={body}");
+                debug!("{vm_id}: request to url={url} failed: status={status}, body={body}");
                 Some(body)
             };
             return Err(Error::FirecrackerAPIError { status, body });
@@ -428,11 +428,11 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     async fn setup_resources(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Configuring machine resources...");
+        debug!("{vm_id}: Configuring machine resources...");
         let json = serde_json::to_string(self.config.machine_cfg())?;
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/machine-config").into();
         self.send_request(url, json).await?;
-        trace!("{vm_id}: Machine resources configured successfully.");
+        debug!("{vm_id}: Machine resources configured successfully.");
 
         Ok(())
     }
@@ -440,12 +440,12 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     async fn setup_boot_source(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Configuring boot source...");
+        debug!("{vm_id}: Configuring boot source...");
         let boot_source = self.config.boot_source()?;
         let json = serde_json::to_string(&boot_source)?;
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/boot-source").into();
         self.send_request(url, json).await?;
-        trace!("{vm_id}: Boot source configured successfully.");
+        debug!("{vm_id}: Boot source configured successfully.");
 
         Ok(())
     }
@@ -453,7 +453,7 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     async fn setup_drives(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Configuring drives...");
+        debug!("{vm_id}: Configuring drives...");
         for drive in &self.config.drives {
             let path = format!("/drives/{}", drive.drive_id());
             let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), &path).into();
@@ -467,7 +467,7 @@ impl<'m> Machine<'m> {
             let json = serde_json::to_string(&drive_obj)?;
             self.send_request(url, json).await?;
         }
-        trace!("{vm_id}: Drives configured successfully.");
+        debug!("{vm_id}: Drives configured successfully.");
 
         Ok(())
     }
@@ -475,7 +475,7 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     async fn setup_network(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Configuring network...");
+        debug!("{vm_id}: Configuring network...");
         // TODO: check for at least one interface.
         let network = &self.config.network_interfaces()[0];
         let json = json!({
@@ -486,7 +486,7 @@ impl<'m> Machine<'m> {
         let path = format!("/network-interfaces/{}", network.vm_if_name());
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), &path).into();
         self.send_request(url, json).await?;
-        trace!("{vm_id}: Network configured successfully.");
+        debug!("{vm_id}: Network configured successfully.");
 
         Ok(())
     }
@@ -498,11 +498,11 @@ impl<'m> Machine<'m> {
             None => return Ok(()),
         };
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Configuring vsock...");
+        debug!("{vm_id}: Configuring vsock...");
         let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/vsock").into();
         let json = serde_json::to_string(vsock_cfg)?;
         self.send_request(url, json).await?;
-        trace!("{vm_id}: vsock configured successfully.");
+        debug!("{vm_id}: vsock configured successfully.");
 
         Ok(())
     }
@@ -510,13 +510,13 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     async fn cleanup_before_starting(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Deleting intermediate VM resources before starting...");
+        debug!("{vm_id}: Deleting intermediate VM resources before starting...");
         let socket_path = self.config.host_socket_path();
-        trace!("{vm_id}: Removing socket file {}...", socket_path.display());
+        debug!("{vm_id}: Removing socket file {}...", socket_path.display());
         match fs::remove_file(&socket_path).await {
-            Ok(_) => trace!("{vm_id}: Deleted `{}`", socket_path.display()),
+            Ok(_) => debug!("{vm_id}: Deleted `{}`", socket_path.display()),
             Err(e) if e.kind() == ErrorKind::NotFound => {
-                trace!("{vm_id}: `{}` not found", socket_path.display())
+                debug!("{vm_id}: `{}` not found", socket_path.display())
             }
             Err(e) => return Err(e.into()),
         }
@@ -527,22 +527,22 @@ impl<'m> Machine<'m> {
         if let Some(path) = self.config.vsock_cfg().map(|v| v.uds_path()) {
             let relative_path = path.strip_prefix("/").unwrap_or(path);
             let path = jailer_workspace_dir.join(relative_path);
-            trace!("{vm_id}: Removing vsock socket file {}...", path.display());
+            debug!("{vm_id}: Removing vsock socket file {}...", path.display());
             match fs::remove_file(&path).await {
-                Ok(_) => trace!("{vm_id}: Deleted `{}`", path.display()),
+                Ok(_) => debug!("{vm_id}: Deleted `{}`", path.display()),
                 Err(e) if e.kind() == ErrorKind::NotFound => {
-                    trace!("{vm_id}: `{}` not found", path.display())
+                    debug!("{vm_id}: `{}` not found", path.display())
                 }
                 Err(e) => return Err(e.into()),
             }
         }
 
         let dev_dir = jailer_workspace_dir.join("dev");
-        trace!("{vm_id}: Deleting `{}`", dev_dir.display());
+        debug!("{vm_id}: Deleting `{}`", dev_dir.display());
         match fs::remove_dir_all(&dev_dir).await {
-            Ok(_) => trace!("{vm_id}: Deleted `{}`", dev_dir.display()),
+            Ok(_) => debug!("{vm_id}: Deleted `{}`", dev_dir.display()),
             Err(e) if e.kind() == ErrorKind::NotFound => {
-                trace!("{vm_id}: `{}` not found", dev_dir.display())
+                debug!("{vm_id}: `{}` not found", dev_dir.display())
             }
             Err(e) => return Err(e.into()),
         }
