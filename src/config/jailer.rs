@@ -192,7 +192,7 @@ impl<'j> JailerBuilder<'j> {
             .jailer
             .chroot_base_dir()
             .join(exec_file_base)
-            .join(&id_str)
+            .join(id_str)
             .join("root")
             .into();
         self.config_builder.0.jailer_cfg = Some(self.jailer);
