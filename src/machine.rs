@@ -16,7 +16,7 @@ use tokio::{
     task,
     time::sleep,
 };
-use tracing::{info, instrument, trace};
+use tracing::{info, instrument, trace, warn};
 
 use hyper::{Body, Client, Method, Request};
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
@@ -52,7 +52,7 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Configuration: {:?}", config);
 
         let jailer_workspace_dir = config.jailer().workspace_dir();
-        info!(
+        trace!(
             "{vm_id}: Ensuring Jailer workspace directory exist at `{}`",
             jailer_workspace_dir.display()
         );
@@ -236,7 +236,7 @@ impl<'m> Machine<'m> {
             })
             .await
         {
-            trace!(
+            warn!(
                 "{vm_id}: Failed to boot VM instance: {}. Force shutting down..",
                 e
             );
@@ -244,7 +244,7 @@ impl<'m> Machine<'m> {
                 // `force_shutdown` only updates the state on success.
                 self.state = MachineState::SHUTOFF;
                 // We want to return to original error so only log the error from shutdown.
-                trace!("{vm_id}: Failed to force shutdown: {}", e);
+                warn!("{vm_id}: Failed to force shutdown: {}", e);
             });
 
             return Err(e);
@@ -261,7 +261,7 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     pub async fn force_shutdown(&mut self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Killing VM...");
+        info!("{vm_id}: Killing VM...");
 
         let pid = match self.state {
             MachineState::SHUTOFF => {
@@ -310,7 +310,7 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     pub async fn shutdown(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
-        trace!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
+        info!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
         self.send_action(Action::SendCtrlAltDel).await?;
         trace!("{vm_id}: CTRL+ALT+DEL sent to VM successfully.");
 
@@ -325,18 +325,20 @@ impl<'m> Machine<'m> {
     #[instrument(skip_all)]
     pub async fn delete(mut self) -> Result<(), Error> {
         let vm_id = self.config.vm_id().to_string();
+        info!("{vm_id}: Deleting VM...");
+
         let jailer_workspace_dir = self.config.jailer_cfg().unwrap().workspace_dir().to_owned();
 
         if let MachineState::RUNNING { .. } = self.state {
             if let Err(err) = self.shutdown().await {
-                trace!("{vm_id}: Shutdown error: {err}");
+                warn!("{vm_id}: Shutdown error: {err}");
             } else {
                 info!("{vm_id}: Waiting for the VM process to shut down...");
                 sleep(Duration::from_secs(10)).await;
             }
 
             if let Err(err) = self.force_shutdown().await {
-                trace!("{vm_id}: Forced shutdown error: {err}");
+                warn!("{vm_id}: Forced shutdown error: {err}");
             }
         }
 
@@ -347,7 +349,7 @@ impl<'m> Machine<'m> {
         let vm_dir = jailer_workspace_dir
             .parent()
             .expect("VM workspace dir must have a parent");
-        info!(
+        trace!(
             "{vm_id}: Deleting VM jailer directory at `{}`",
             vm_dir.display()
         );
@@ -420,7 +422,7 @@ impl<'m> Machine<'m> {
         self.setup_drives().await?;
         self.setup_network().await?;
         self.setup_vsock().await?;
-        info!("{vm_id}: VM successfully setup.");
+        trace!("{vm_id}: VM successfully setup.");
 
         Ok(())
     }
