@@ -167,7 +167,7 @@ impl<'m> Machine<'m> {
                     .clone()
                     .unwrap_or_else(|| vm_id.to_string().into());
                 let mut cmd = Command::new("tmux");
-                cmd.args(&[
+                cmd.args([
                     "new-session",
                     "-d",
                     "-s",
@@ -183,7 +183,7 @@ impl<'m> Machine<'m> {
             cmd.arg(daemonize_arg);
         }
         let cmd = cmd
-            .args(&[
+            .args([
                 "--id",
                 &vm_id,
                 "--exec-file",
@@ -295,7 +295,7 @@ impl<'m> Machine<'m> {
                     .unwrap_or_else(|| vm_id.to_string().into());
                 // In case of tmux, we need to kill the tmux session.
                 let cmd = &mut Command::new("tmux");
-                cmd.args(&["kill-session", "-t", &session_name]);
+                cmd.args(["kill-session", "-t", &session_name]);
                 trace!("{vm_id}: Running command: {:?}", cmd);
                 cmd.spawn()?.wait().await?;
             }
@@ -403,7 +403,7 @@ impl<'m> Machine<'m> {
     }
 
     async fn send_action(&self, action: Action) -> Result<(), Error> {
-        let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/actions").into();
+        let url: hyper::Uri = Uri::new(self.config.host_socket_path(), "/actions").into();
         let json = serde_json::to_string(&action)?;
         self.send_request(url, json).await?;
 
@@ -430,7 +430,7 @@ impl<'m> Machine<'m> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring machine resources...");
         let json = serde_json::to_string(self.config.machine_cfg())?;
-        let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/machine-config").into();
+        let url: hyper::Uri = Uri::new(self.config.host_socket_path(), "/machine-config").into();
         self.send_request(url, json).await?;
         trace!("{vm_id}: Machine resources configured successfully.");
 
@@ -443,7 +443,7 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Configuring boot source...");
         let boot_source = self.config.boot_source()?;
         let json = serde_json::to_string(&boot_source)?;
-        let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/boot-source").into();
+        let url: hyper::Uri = Uri::new(self.config.host_socket_path(), "/boot-source").into();
         self.send_request(url, json).await?;
         trace!("{vm_id}: Boot source configured successfully.");
 
@@ -456,7 +456,7 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Configuring drives...");
         for drive in &self.config.drives {
             let path = format!("/drives/{}", drive.drive_id());
-            let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), &path).into();
+            let url: hyper::Uri = Uri::new(self.config.host_socket_path(), &path).into();
             // Send modified drive object, with drive file in chroot location
             let mut drive_obj = drive.clone();
             let drive_filename = drive
@@ -484,7 +484,7 @@ impl<'m> Machine<'m> {
         });
         let json = serde_json::to_string(&json)?;
         let path = format!("/network-interfaces/{}", network.vm_if_name());
-        let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), &path).into();
+        let url: hyper::Uri = Uri::new(self.config.host_socket_path(), &path).into();
         self.send_request(url, json).await?;
         trace!("{vm_id}: Network configured successfully.");
 
@@ -499,7 +499,7 @@ impl<'m> Machine<'m> {
         };
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring vsock...");
-        let url: hyper::Uri = Uri::new(&self.config.host_socket_path(), "/vsock").into();
+        let url: hyper::Uri = Uri::new(self.config.host_socket_path(), "/vsock").into();
         let json = serde_json::to_string(vsock_cfg)?;
         self.send_request(url, json).await?;
         trace!("{vm_id}: vsock configured successfully.");

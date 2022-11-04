@@ -176,7 +176,7 @@ impl<'c> Config<'c> {
                     .file_name()
                     .ok_or(Error::InvalidInitrdPath)?
                     .to_owned();
-                Ok(Some(self.jailer().workspace_dir().join(&initrd_filename)))
+                Ok(Some(self.jailer().workspace_dir().join(initrd_filename)))
             }
             None => Ok(None),
         }
