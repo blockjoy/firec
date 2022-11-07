@@ -62,22 +62,36 @@ impl<'m> Machine<'m> {
             .await?;
 
         let dest = config.kernel_image_path();
-        trace!(
-            "{vm_id}: Copying kernel image from `{}` to `{}`",
-            config.src_kernel_image_path.display(),
-            dest.display()
-        );
-        copy(config.src_kernel_image_path(), dest).await?;
+        if dest.exists() {
+            trace!(
+                "{vm_id}: Skipping existing kernel image at `{}`",
+                dest.display()
+            );
+        } else {
+            trace!(
+                "{vm_id}: Copying kernel image from `{}` to `{}`",
+                config.src_kernel_image_path.display(),
+                dest.display()
+            );
+            copy(config.src_kernel_image_path(), dest).await?;
+        }
 
         if let (Some(src_initrd_path), Some(initrd_path)) =
             (config.src_initrd_path(), config.initrd_path()?)
         {
-            trace!(
-                "{vm_id}: Copying initrd from `{}` to `{}`",
-                src_initrd_path.display(),
-                initrd_path.display()
-            );
-            copy(src_initrd_path, initrd_path).await?;
+            if initrd_path.exists() {
+                trace!(
+                    "{vm_id}: Skipping existing initrd at `{}`",
+                    initrd_path.display()
+                );
+            } else {
+                trace!(
+                    "{vm_id}: Copying initrd from `{}` to `{}`",
+                    src_initrd_path.display(),
+                    initrd_path.display()
+                );
+                copy(src_initrd_path, initrd_path).await?;
+            }
         }
 
         for drive in &config.drives {
@@ -86,13 +100,17 @@ impl<'m> Machine<'m> {
                 .file_name()
                 .ok_or(Error::InvalidDrivePath)?;
             let dest = jailer_workspace_dir.join(drive_filename);
-            trace!(
-                "{vm_id}: Copying drive `{}` from `{}` to `{}`",
-                drive.drive_id(),
-                drive.src_path().display(),
-                dest.display()
-            );
-            copy(&drive.src_path(), dest).await?;
+            if dest.exists() {
+                trace!("{vm_id}: Skipping existing drive at `{}`", dest.display());
+            } else {
+                trace!(
+                    "{vm_id}: Copying drive `{}` from `{}` to `{}`",
+                    drive.drive_id(),
+                    drive.src_path().display(),
+                    dest.display()
+                );
+                copy(&drive.src_path(), dest).await?;
+            }
         }
 
         if let Some(socket_dir) = config.host_socket_path().parent() {
