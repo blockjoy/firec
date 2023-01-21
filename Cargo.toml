@@ -5,7 +5,7 @@ version = "0.2.0"
 edition = "2021"
 keywords = ["firecracker", "unix", "linux", "microvm", "IPC"]
 categories = ["os::linux-apis", "virtualization", "web-programming::http-client"]
-license-file = "LICENSE"
+license = "Apache-2.0"
 repository = "https://github.com/blockjoy/firec/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
