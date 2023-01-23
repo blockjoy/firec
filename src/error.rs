@@ -67,11 +67,11 @@ pub enum Error {
 
     /// Process not running
     #[error("Process not running for pid: {0}")]
-    ProcessNotRunning(i32),
+    ProcessNotRunning(u32),
 
     /// Process not killed
     #[error("Process not killed for pid: {0}")]
-    ProcessNotKilled(i32),
+    ProcessNotKilled(u32),
 
     /// Process exited immediatelly after start.
     #[error("Process exited immediatelly with status: {exit_status}")]

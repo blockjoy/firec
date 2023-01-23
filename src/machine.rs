@@ -9,7 +9,7 @@ use crate::{
 use futures_util::TryFutureExt;
 use serde::Serialize;
 use serde_json::json;
-use sysinfo::{Pid, ProcessExt, ProcessRefreshKind, System, SystemExt};
+use sysinfo::{Pid, PidExt, ProcessExt, ProcessRefreshKind, System, SystemExt};
 use tokio::{
     fs::{self, copy, DirBuilder},
     process::Command,
@@ -37,7 +37,7 @@ pub enum MachineState {
     /// Machine is running
     RUNNING {
         /// Pid of a running jailer/firecraker process
-        pid: i32,
+        pid: u32,
     },
 }
 
@@ -232,7 +232,7 @@ impl<'m> Machine<'m> {
         trace!("{vm_id}: Running command: {:?}", cmd);
         let mut child = cmd.spawn()?;
         let pid = match child.id() {
-            Some(id) => id.try_into()?,
+            Some(id) => id,
             None => {
                 let exit_status = child.wait().await?;
                 return Err(Error::ProcessExitedImmediatelly { exit_status });
@@ -291,8 +291,9 @@ impl<'m> Machine<'m> {
             JailerMode::Daemon | JailerMode::Attached(_) => {
                 let killed = task::spawn_blocking(move || {
                     let mut sys = System::new();
-                    if sys.refresh_process_specifics(Pid::from(pid), ProcessRefreshKind::new()) {
-                        match sys.process(Pid::from(pid)) {
+                    if sys.refresh_process_specifics(Pid::from_u32(pid), ProcessRefreshKind::new())
+                    {
+                        match sys.process(Pid::from_u32(pid)) {
                             Some(process) => Ok(process.kill()),
                             None => Err(Error::ProcessNotRunning(pid)),
                         }
