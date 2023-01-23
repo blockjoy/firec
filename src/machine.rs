@@ -36,7 +36,7 @@ pub enum MachineState {
     SHUTOFF,
     /// Machine is running
     RUNNING {
-        /// Pid of a running jailer/firecraker process
+        /// Pid of a running jailer/firecracker process
         pid: u32,
     },
 }
