@@ -30,7 +30,7 @@ pub struct Machine<'m> {
 }
 
 /// VM state
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineState {
     /// Machine is not started or already shut down
     SHUTOFF,
