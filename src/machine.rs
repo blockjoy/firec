@@ -21,11 +21,14 @@ use tracing::{info, instrument, trace, warn};
 use hyper::{Body, Client, Method, Request};
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 
+const JAILER_START_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// A VMM machine.
 #[derive(Debug)]
 pub struct Machine<'m> {
     config: Config<'m>,
-    state: MachineState,
+    /// Pid of a started jailer/firecracker process, or None if not started yet
+    pid: Option<u32>,
     client: Client<UnixConnector>,
 }
 
@@ -35,10 +38,7 @@ pub enum MachineState {
     /// Machine is not started or already shut down
     SHUTOFF,
     /// Machine is running
-    RUNNING {
-        /// Pid of a running jailer/firecracker process
-        pid: u32,
-    },
+    RUNNING,
 }
 
 impl<'m> Machine<'m> {
@@ -129,7 +129,7 @@ impl<'m> Machine<'m> {
 
         let machine = Self {
             config,
-            state: MachineState::SHUTOFF,
+            pid: None,
             client,
         };
 
@@ -140,16 +140,16 @@ impl<'m> Machine<'m> {
     ///
     /// The machine should be created first via call to `create`
     #[instrument(skip_all)]
-    pub async fn connect(config: Config<'m>, state: MachineState) -> Machine<'m> {
+    pub async fn connect(config: Config<'m>, pid: Option<u32>) -> Machine<'m> {
         let vm_id = *config.vm_id();
         info!("Connecting to machine with VM ID `{vm_id}`");
-        trace!("{vm_id}: Configuration: {:?}, state: {:?}", config, state);
+        trace!("{vm_id}: Configuration: {:?}, pid: {:?}", config, pid);
 
         let client = Client::unix();
 
         Self {
             config,
-            state,
+            pid,
             client,
         }
     }
@@ -157,6 +157,9 @@ impl<'m> Machine<'m> {
     /// Start the machine.
     #[instrument(skip_all)]
     pub async fn start(&mut self) -> Result<(), Error> {
+        if self.state() == MachineState::RUNNING {
+            return Err(Error::ProcessAlreadyRunning);
+        }
         let vm_id = self.config.vm_id().to_string();
         info!("Starting machine with VM ID `{vm_id}`");
 
@@ -165,6 +168,11 @@ impl<'m> Machine<'m> {
         // FIXME: Assuming jailer for now.
         let jailer = self.config.jailer_cfg.as_mut().expect("no jailer config");
         let jailer_bin = jailer.jailer_binary().to_owned();
+        let jailer_exec_path = jailer
+            .exec_file()
+            .to_str()
+            .ok_or(Error::InvalidJailerExecPath)?
+            .to_owned();
         let (mut cmd, daemonize_arg, stdin, stdout, stderr) = match &mut jailer.mode {
             JailerMode::Daemon => (
                 Command::new(jailer.jailer_binary()),
@@ -205,10 +213,7 @@ impl<'m> Machine<'m> {
                 "--id",
                 &vm_id,
                 "--exec-file",
-                jailer
-                    .exec_file()
-                    .to_str()
-                    .ok_or(Error::InvalidJailerExecPath)?,
+                &jailer_exec_path,
                 "--uid",
                 &jailer.uid().to_string(),
                 "--gid",
@@ -231,19 +236,11 @@ impl<'m> Machine<'m> {
             .stderr(stderr);
         trace!("{vm_id}: Running command: {:?}", cmd);
         let mut child = cmd.spawn()?;
-        let pid = match child.id() {
-            Some(id) => id,
-            None => {
-                let exit_status = child.wait().await?;
-                return Err(Error::ProcessExitedImmediatelly { exit_status });
-            }
-        };
-        self.state = MachineState::RUNNING { pid };
-
-        // Give some time to the jailer to start up and create the socket.
-        // FIXME: We should monitor the socket instead?
-        info!("{vm_id}: Waiting for the jailer to start up...");
-        sleep(Duration::from_secs(10)).await;
+        if child.id().is_none() {
+            let exit_status = child.wait().await?;
+            return Err(Error::ProcessExitedImmediatelly { exit_status });
+        }
+        self.pid = Some(self.wait_for_jailer(&jailer_exec_path).await?);
 
         if let Err(e) = self
             .setup_vm()
@@ -259,8 +256,6 @@ impl<'m> Machine<'m> {
                 e
             );
             self.force_shutdown().await.unwrap_or_else(|e| {
-                // `force_shutdown` only updates the state on success.
-                self.state = MachineState::SHUTOFF;
                 // We want to return to original error so only log the error from shutdown.
                 warn!("{vm_id}: Failed to force shutdown: {}", e);
             });
@@ -281,12 +276,7 @@ impl<'m> Machine<'m> {
         let vm_id = self.config.vm_id();
         info!("{vm_id}: Killing VM...");
 
-        let pid = match self.state {
-            MachineState::SHUTOFF => {
-                return Err(Error::ProcessNotStarted);
-            }
-            MachineState::RUNNING { pid } => pid,
-        };
+        let pid = self.pid.ok_or(Error::ProcessNotStarted)?;
         match self.config.jailer_cfg().expect("no jailer config").mode() {
             JailerMode::Daemon | JailerMode::Attached(_) => {
                 let killed = task::spawn_blocking(move || {
@@ -319,9 +309,7 @@ impl<'m> Machine<'m> {
                 cmd.spawn()?.wait().await?;
             }
         }
-
-        self.state = MachineState::SHUTOFF;
-
+        self.pid = None;
         Ok(())
     }
 
@@ -332,7 +320,6 @@ impl<'m> Machine<'m> {
         info!("{vm_id}: Sending CTRL+ALT+DEL to VM...");
         self.send_action(Action::SendCtrlAltDel).await?;
         trace!("{vm_id}: CTRL+ALT+DEL sent to VM successfully.");
-
         Ok(())
     }
 
@@ -348,7 +335,7 @@ impl<'m> Machine<'m> {
 
         let jailer_workspace_dir = self.config.jailer_cfg().unwrap().workspace_dir().to_owned();
 
-        if let MachineState::RUNNING { .. } = self.state {
+        if MachineState::RUNNING == self.state() {
             if let Err(err) = self.shutdown().await {
                 warn!("{vm_id}: Shutdown error: {err}");
             } else {
@@ -383,11 +370,65 @@ impl<'m> Machine<'m> {
         &self.config
     }
 
-    /// Get the machine state
+    /// Checks the machine actual state
     ///
     /// Returns SHUTOFF is machine is not running
     pub fn state(&self) -> MachineState {
-        self.state
+        if let Some(pid) = self.pid {
+            let mut sys = System::new();
+            // TODO set self.pid=None somewhere if process doesn't exists anymore
+            if sys.refresh_process_specifics(Pid::from_u32(pid), ProcessRefreshKind::new()) {
+                if sys.process(Pid::from_u32(pid)).is_some() {
+                    MachineState::RUNNING
+                } else {
+                    MachineState::SHUTOFF
+                }
+            } else {
+                MachineState::SHUTOFF
+            }
+        } else {
+            MachineState::SHUTOFF
+        }
+    }
+
+    #[instrument(skip_all)]
+    async fn wait_for_jailer(&self, jailer_exec_path: &str) -> Result<u32, Error> {
+        let vm_id = self.config.vm_id();
+        // Wait jailer to start up and create the socket.
+        info!("{vm_id}: Waiting for the jailer to start up...");
+
+        // get try to get FC version to verify if jailer already started
+        let request = || {
+            Request::builder()
+                .method(Method::GET)
+                .uri(Uri::new(self.config.host_socket_path(), "/version"))
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .body(Body::empty())
+        };
+        let start = std::time::Instant::now();
+        let elapsed = || std::time::Instant::now() - start;
+        while !self.client.request(request()?).await?.status().is_success() {
+            if elapsed() < JAILER_START_TIMEOUT {
+                sleep(Duration::from_millis(100)).await;
+            } else {
+                return Err(Error::JailerStartTimedOut);
+            }
+        }
+        // get PID of started firecracker
+        let mut sys = System::new();
+        sys.refresh_specifics(
+            sysinfo::RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
+        );
+        let processes: Vec<_> = sys
+            .processes_by_name(jailer_exec_path)
+            .filter(|&process| process.cmd().contains(&vm_id.to_string()))
+            .collect();
+
+        match processes.len() {
+            1 => Ok(processes[0].pid().as_u32()),
+            _ => Err(Error::FailedToStart),
+        }
     }
 
     #[instrument(skip_all)]

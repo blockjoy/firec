@@ -61,6 +61,18 @@ pub enum Error {
         body: Option<String>,
     },
 
+    /// Jailer start timed out
+    #[error("Jailer start timed out")]
+    JailerStartTimedOut,
+
+    /// Failed to start
+    #[error("Failed to start")]
+    FailedToStart,
+
+    /// Process already running
+    #[error("Process is already running")]
+    ProcessAlreadyRunning,
+
     /// Process not started
     #[error("Process not started")]
     ProcessNotStarted,
