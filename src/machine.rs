@@ -9,7 +9,7 @@ use crate::{
 use futures_util::TryFutureExt;
 use serde::Serialize;
 use serde_json::json;
-use sysinfo::{Pid, PidExt, ProcessExt, ProcessRefreshKind, System, SystemExt};
+use sysinfo::{Pid, PidExt, ProcessExt, ProcessRefreshKind, ProcessStatus, System, SystemExt};
 use tokio::{
     fs::{self, copy, DirBuilder},
     process::Command,
@@ -384,11 +384,16 @@ impl<'m> Machine<'m> {
             let mut sys = System::new();
             // TODO set self.pid=None somewhere if process doesn't exists anymore
             if sys.refresh_process_specifics(Pid::from_u32(pid), ProcessRefreshKind::new()) {
-                if sys.process(Pid::from_u32(pid)).is_some() {
-                    MachineState::RUNNING
-                } else {
-                    MachineState::SHUTOFF
-                }
+                sys.process(Pid::from_u32(pid))
+                    .map_or(MachineState::SHUTOFF, |proc| {
+                        // sometime FC is not reaped by jailer for some time, so lets ignore
+                        // zombies for state purpose
+                        if proc.status() != ProcessStatus::Zombie {
+                            MachineState::RUNNING
+                        } else {
+                            MachineState::SHUTOFF
+                        }
+                    })
             } else {
                 MachineState::SHUTOFF
             }
