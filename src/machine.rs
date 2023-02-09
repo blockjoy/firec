@@ -173,6 +173,12 @@ impl<'m> Machine<'m> {
             .to_str()
             .ok_or(Error::InvalidJailerExecPath)?
             .to_owned();
+        let jailer_exec_name = jailer
+            .exec_file()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or(Error::InvalidJailerExecPath)?
+            .to_owned();
         let (mut cmd, daemonize_arg, stdin, stdout, stderr) = match &mut jailer.mode {
             JailerMode::Daemon => (
                 Command::new(jailer.jailer_binary()),
@@ -240,7 +246,7 @@ impl<'m> Machine<'m> {
             let exit_status = child.wait().await?;
             return Err(Error::ProcessExitedImmediatelly { exit_status });
         }
-        self.pid = Some(self.wait_for_jailer(&jailer_exec_path).await?);
+        self.pid = Some(self.wait_for_jailer(&jailer_exec_name).await?);
 
         if let Err(e) = self
             .setup_vm()
@@ -392,23 +398,35 @@ impl<'m> Machine<'m> {
     }
 
     #[instrument(skip_all)]
-    async fn wait_for_jailer(&self, jailer_exec_path: &str) -> Result<u32, Error> {
+    async fn wait_for_jailer(&self, jailer_exec_name: &str) -> Result<u32, Error> {
         let vm_id = self.config.vm_id();
         // Wait jailer to start up and create the socket.
         info!("{vm_id}: Waiting for the jailer to start up...");
 
         // get try to get FC version to verify if jailer already started
-        let request = || {
-            Request::builder()
-                .method(Method::GET)
-                .uri(Uri::new(self.config.host_socket_path(), "/version"))
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .body(Body::empty())
+        let request_version = || async {
+            if self
+                .client
+                .request(
+                    Request::builder()
+                        .method(Method::GET)
+                        .uri(Uri::new(self.config.host_socket_path(), "/version"))
+                        .header("Accept", "application/json")
+                        .header("Content-Type", "application/json")
+                        .body(Body::empty())?,
+                )
+                .await?
+                .status()
+                .is_success()
+            {
+                Ok(())
+            } else {
+                Err(Error::ProcessNotStarted)
+            }
         };
         let start = std::time::Instant::now();
         let elapsed = || std::time::Instant::now() - start;
-        while !self.client.request(request()?).await?.status().is_success() {
+        while request_version().await.is_err() {
             if elapsed() < JAILER_START_TIMEOUT {
                 sleep(Duration::from_millis(100)).await;
             } else {
@@ -421,7 +439,7 @@ impl<'m> Machine<'m> {
             sysinfo::RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
         );
         let processes: Vec<_> = sys
-            .processes_by_name(jailer_exec_path)
+            .processes_by_name(jailer_exec_name)
             .filter(|&process| process.cmd().contains(&vm_id.to_string()))
             .collect();
 
