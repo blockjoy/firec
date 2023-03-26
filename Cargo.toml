@@ -27,3 +27,4 @@ uuid = {version = "1.2.2", features = ["serde", "v4"]}
 [dev-dependencies]
 doc-comment = "0.3.3"
 tokio = {version = "1.24.2", features = ["rt", "macros"]}
+reqwest = "0.11.15"
