@@ -7,47 +7,7 @@ create, manipulate, query and stop VMMs.
 
 ## Examples
 
-```rust,no_run
-use std::path::Path;
-use firec::{
-    Machine,
-    config::{Config, Drive, Jailer, Machine as MachineCfg, network::Interface}};
-use tokio::time::{sleep, Duration};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let kernel_args = "console=ttyS0 reboot=k panic=1 pci=off random.trust_cpu=on";
-
-    let iface = Interface::new("eth0", "tap0");
-
-    let config = Config::builder(None, Path::new("debian-vmlinux"))
-        .jailer_cfg()
-            .chroot_base_dir(Path::new("/srv"))
-            .exec_file(Path::new("/usr/bin/firecracker"))
-            .build()
-        .kernel_args(kernel_args)
-        .machine_cfg()
-            .vcpu_count(2)
-            .mem_size_mib(1024)
-            .build()
-        .add_drive("root", Path::new("debian.ext4"))
-            .is_root_device(true)
-            .build()
-        .add_network_interface(iface)
-        .socket_path(Path::new("/tmp/firecracker.socket"))
-        .build();
-    let mut machine = Machine::create(config).await?;
-
-    machine.start().await?;
-
-    // Let the machine run for a bit before we KILL IT :)
-    sleep(Duration::from_secs(15)).await;
-
-    machine.force_shutdown().await?;
-
-    Ok(())
-}
-```
+You can see implementations in the [`examples`](./examples/) directory.
 
 ## status
 
