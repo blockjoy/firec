@@ -562,17 +562,17 @@ impl<'m> Machine<'m> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring network...");
         // TODO: check for at least one interface.
-        let network = &self.config.network_interfaces()[0];
-        let json = json!({
-            "iface_id": network.vm_if_name(),
-            "host_dev_name": network.host_if_name(),
-        });
-        let json = serde_json::to_string(&json)?;
-        let path = format!("/network-interfaces/{}", network.vm_if_name());
-        let url: hyper::Uri = Uri::new(self.config.host_socket_path(), &path).into();
-        self.send_request(url, json).await?;
-        trace!("{vm_id}: Network configured successfully.");
-
+        for network in self.config.network_interfaces() {
+            let json = json!({
+                "iface_id": network.vm_if_name(),
+                "host_dev_name": network.host_if_name(),
+            });
+            let json = serde_json::to_string(&json)?;
+            let path = format!("/network-interfaces/{}", network.vm_if_name());
+            let url: hyper::Uri = Uri::new(self.config.host_socket_path(), &path).into();
+            self.send_request(url, json).await?;
+        }
+        trace!("{vm_id}: All networks configured successfully.");
         Ok(())
     }
 
