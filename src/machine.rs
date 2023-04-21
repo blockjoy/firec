@@ -562,8 +562,7 @@ impl<'m> Machine<'m> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring network...");
         // TODO: check for at least one interface.
-        let networks = &self.config.network_interfaces();
-        for network in networks.iter(){
+        for network in self.config.network_interfaces() {
             let json = json!({
                 "iface_id": network.vm_if_name(),
                 "host_dev_name": network.host_if_name(),
