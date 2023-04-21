@@ -4,6 +4,17 @@ use serde::{Deserialize, Serialize};
 
 use super::Builder;
 
+/// Configuration options for IO engine.
+///
+/// https://github.com/firecracker-microvm/firecracker/blob/main/docs/api_requests/block-io-engine.md
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum IOEngineType {
+    /// Use an Async engine, based on io_uring. Available for host kernels > 5.10.51
+    Async,
+    /// Use a Sync engine, based on blocking system calls. Used by default
+    Sync,
+}
+
 /// Drive configuration.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Drive<'d> {
@@ -14,6 +25,8 @@ pub struct Drive<'d> {
     part_uuid: Option<Cow<'d, str>>,
     #[serde(rename = "path_on_host")]
     pub(crate) src_path: Cow<'d, Path>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    io_engine: Option<IOEngineType>,
     /* TODO:
 
     /// rate limiter
@@ -74,6 +87,7 @@ impl<'d> DriveBuilder<'d> {
                 is_root_device: false,
                 part_uuid: None,
                 src_path: src_path.into(),
+                io_engine: None,
             },
         }
     }
@@ -98,6 +112,12 @@ impl<'d> DriveBuilder<'d> {
         U: Into<Cow<'d, str>>,
     {
         self.drive.part_uuid = Some(part_uuid.into());
+        self
+    }
+
+    /// Set IO engine type for to-be-created `Drive`.
+    pub fn io_engine(mut self, io_engine: Option<IOEngineType>) -> Self {
+        self.drive.io_engine = io_engine;
         self
     }
 

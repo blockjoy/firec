@@ -561,7 +561,6 @@ impl<'m> Machine<'m> {
     async fn setup_network(&self) -> Result<(), Error> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring network...");
-        // TODO: check for at least one interface.
         for network in self.config.network_interfaces() {
             let json = json!({
                 "iface_id": network.vm_if_name(),
