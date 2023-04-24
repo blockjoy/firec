@@ -15,6 +15,34 @@ pub enum IOEngineType {
     Sync,
 }
 
+/// Configuration options for Firecracker flavor of token bucket.
+///
+/// More info here:
+/// https://github.com/firecracker-microvm/firecracker/blob/main/src/rate_limiter/src/lib.rs
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct TokenBucket {
+    /// Size of bucker
+    pub size: u64,
+    /// Amount of immediately available, non-refillable tokens provided on initialization
+    pub one_time_burst: Option<u64>,
+    /// Bucket refill cycle period
+    #[serde(rename = "refill_time")]
+    pub refill_time_ms: u64,
+}
+
+/// Configuration for IO related rate limiters.
+///
+/// Is set up for each drive separatelly.
+///
+/// Specifiyng 0 as `size` or `refill_time_ms` of a rate limiter is the same as passing None.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct RateLimiter {
+    /// Limit in bytes
+    pub bandwidth: Option<TokenBucket>,
+    /// Limit in number of iops
+    pub ops: Option<TokenBucket>,
+}
+
 /// Drive configuration.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Drive<'d> {
@@ -27,13 +55,8 @@ pub struct Drive<'d> {
     pub(crate) src_path: Cow<'d, Path>,
     #[serde(skip_serializing_if = "Option::is_none")]
     io_engine: Option<IOEngineType>,
-    /* TODO:
-
-    /// rate limiter
     #[serde(skip_serializing_if = "Option::is_none")]
     rate_limiter: Option<RateLimiter>,
-
-    */
 }
 
 impl<'d> Drive<'d> {
@@ -88,6 +111,7 @@ impl<'d> DriveBuilder<'d> {
                 part_uuid: None,
                 src_path: src_path.into(),
                 io_engine: None,
+                rate_limiter: None,
             },
         }
     }
@@ -118,6 +142,12 @@ impl<'d> DriveBuilder<'d> {
     /// Set IO engine type for to-be-created `Drive`.
     pub fn io_engine(mut self, io_engine: Option<IOEngineType>) -> Self {
         self.drive.io_engine = io_engine;
+        self
+    }
+
+    /// Set IO rate limits for to-be-created `Drive`.
+    pub fn rate_limiter(mut self, rate_limiter: Option<RateLimiter>) -> Self {
+        self.drive.rate_limiter = rate_limiter;
         self
     }
 
