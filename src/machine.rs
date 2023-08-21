@@ -8,7 +8,6 @@ use crate::{
 };
 use futures_util::TryFutureExt;
 use serde::Serialize;
-use serde_json::json;
 use sysinfo::{Pid, PidExt, ProcessExt, ProcessRefreshKind, ProcessStatus, System, SystemExt};
 use tokio::{
     fs::{self, copy, DirBuilder},
@@ -562,11 +561,7 @@ impl<'m> Machine<'m> {
         let vm_id = self.config.vm_id();
         trace!("{vm_id}: Configuring network...");
         for network in self.config.network_interfaces() {
-            let json = json!({
-                "iface_id": network.vm_if_name(),
-                "host_dev_name": network.host_if_name(),
-            });
-            let json = serde_json::to_string(&json)?;
+            let json = serde_json::to_string(network)?;
             let path = format!("/network-interfaces/{}", network.vm_if_name());
             let url: hyper::Uri = Uri::new(self.config.host_socket_path(), &path).into();
             self.send_request(url, json).await?;

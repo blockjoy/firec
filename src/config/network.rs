@@ -1,9 +1,13 @@
 use std::borrow::Cow;
 
+use serde::{Deserialize, Serialize};
+
 /// Network configuration.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Interface<'i> {
+    #[serde(rename = "host_dev_name")]
     host_if_name: Cow<'i, str>,
+    #[serde(rename = "iface_id")]
     vm_if_name: Cow<'i, str>,
 }
 
