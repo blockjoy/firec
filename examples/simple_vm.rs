@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a TAP interface between host and guest VM
     // Host iface name: tap0
     // Guest iface name: eth0
-    let iface = Interface::new("tap0", "eth0");
+    let iface = Interface::new("tap0", "eth0", Some("AA:FC:00:00:00:01"));
 
     let kernel_args = "console=ttyS0 reboot=k panic=1 pci=off random.trust_cpu=on";
     // Build a config for a microVM with 1 vCPU, 1024 MiB of RAM and a root drive
