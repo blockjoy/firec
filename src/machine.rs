@@ -160,6 +160,9 @@ impl<'m> Machine<'m> {
             return Err(Error::ProcessAlreadyRunning);
         }
         let vm_id = self.config.vm_id().to_string();
+        let io_limits = self.config.io_limits();
+        let vcpu_count = self.config.machine_cfg().vcpu_count();
+        let mem_bytes = self.config.machine_cfg().mem_size_bytes();
         info!("Starting machine with VM ID `{vm_id}`");
 
         self.cleanup_before_starting().await?;
@@ -213,6 +216,14 @@ impl<'m> Machine<'m> {
         if let Some(daemonize_arg) = daemonize_arg {
             cmd.arg(daemonize_arg);
         }
+        if let Some(io_limits) = io_limits {
+            cmd.args([
+                "--cgroup",
+                &format!("blkio.throttle.io_serviced={}", io_limits.ops),
+                "--cgroup",
+                &format!("blkio.throttle.io_service_bytes={}", io_limits.bandwidth),
+            ]);
+        }
         let cmd = cmd
             .args([
                 "--id",
@@ -228,6 +239,12 @@ impl<'m> Machine<'m> {
                     .chroot_base_dir()
                     .to_str()
                     .ok_or(Error::InvalidChrootBasePath)?,
+                "--cgroup",
+                &format!("cpu.shares={vcpu_count}"),
+                "--cgroup",
+                &format!("memory.limit_in_bytes={mem_bytes}"),
+                "--cgroup",
+                &format!("memory.memsw.limit_in_bytes={mem_bytes}",),
                 // `firecracker` binary args.
                 "--",
                 "--api-sock",

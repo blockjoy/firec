@@ -39,6 +39,7 @@ pub struct Config<'c> {
     pub(crate) src_kernel_image_path: Cow<'c, Path>,
     pub(crate) src_initrd_path: Option<Cow<'c, Path>>,
     kernel_args: Option<Cow<'c, str>>,
+    io_limits: Option<IoLimits>,
     pub(crate) drives: Vec<Drive<'c>>,
 
     // FIXME: Can't use trait object here because it's make `Config` non-Send, which is problematic
@@ -82,6 +83,7 @@ impl<'c> Config<'c> {
             src_kernel_image_path: src_kernel_image_path.into(),
             src_initrd_path: None,
             kernel_args: None,
+            io_limits: None,
             drives: Vec::new(),
             machine_cfg: Machine::default(),
             jailer_cfg: None,
@@ -187,6 +189,11 @@ impl<'c> Config<'c> {
         self.kernel_args.as_ref().map(AsRef::as_ref)
     }
 
+    /// IO limits.
+    pub fn io_limits(&self) -> Option<IoLimits> {
+        self.io_limits
+    }
+
     /// The drives.
     pub fn drives(&self) -> &[Drive<'c>] {
         &self.drives
@@ -226,6 +233,15 @@ impl<'c> Config<'c> {
         // FIXME: Assuming jailer for now.
         self.jailer_cfg.as_ref().expect("no jailer config")
     }
+}
+
+/// IO limits
+#[derive(Copy, Clone, Debug)]
+pub struct IoLimits {
+    /// Operations per second.
+    pub ops: u64,
+    /// Bytes per second.
+    pub bandwidth: u64,
 }
 
 /// The boot source for the microVM.
@@ -326,6 +342,12 @@ impl<'c> Builder<'c> {
         P: Into<Cow<'c, str>>,
     {
         self.0.kernel_args = Some(kernel_args.into());
+        self
+    }
+
+    /// Set io limits.
+    pub fn io_limits(mut self, limits: Option<IoLimits>) -> Self {
+        self.0.io_limits = limits;
         self
     }
 

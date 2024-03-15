@@ -33,6 +33,11 @@ impl<'m> Machine<'m> {
         self.mem_size_mib
     }
 
+    /// Memory size of VM.
+    pub fn mem_size_bytes(&self) -> i64 {
+        self.mem_size_mib * 1048576
+    }
+
     /// Number of vCPUs (either 1 or an even number)
     pub fn vcpu_count(&self) -> usize {
         self.vcpu_count
